@@ -3,6 +3,9 @@
 .bannerpy
 .vm
 
+# config files
+.env
+
 # IDEs
 .vscode
 .idea
