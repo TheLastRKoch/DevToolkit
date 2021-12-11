@@ -43,6 +43,4 @@ class GithubGistService():
         self.__patch_request(body)
 
 if __name__ == '__main__':    
-    ggs = GithubGistService(r"https://api.github.com/gists/e63bc87fede6f4771a311c220bd0f7e8",r"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")
-    ggs.update_url("https://www.youtube.com/watch?v=3dEfc9LL9bQ")
-    print(ggs.get_url())
+    pass
