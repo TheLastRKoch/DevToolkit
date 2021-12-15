@@ -10,7 +10,8 @@ load_dotenv()
 app = Flask(__name__)
 
 
-ggs = GithubGistService(env["GIST_URL"],env["GITHUB_API_KEY"])
+ggs = GithubGistService(env["GIST_URL"], env["GITHUB_API_KEY"])
+
 
 @app.route("/player")
 def player():
@@ -23,5 +24,7 @@ def player():
     # Send the identifier to the view
     return render_template("index.html", identifier=identifier)
 
+
 if __name__ == '__main__':
-    app.run(host=env["HOST"], debug=bool(env["DEBUG_MODE"]), port=int(env["PORT"]))
+    app.run(host=env["HOST"], debug=bool(
+        env["DEBUG_MODE"]), port=int(env["PORT"]))
