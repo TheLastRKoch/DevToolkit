@@ -1,8 +1,8 @@
-from os import environ as env
 import os
+from os import environ as env
 from dotenv import load_dotenv
-from flask import Flask, render_template, send_from_directory, url_for
 from services import urlService, GithubGistService
+from flask import Flask, render_template, send_from_directory
 
 # Load environment variables
 load_dotenv()
@@ -25,7 +25,8 @@ def favicon():
                                'favicon.ico',
                                mimetype='image/vnd.microsoft.icon')
 
-@ app.route("/player")
+
+@app.route("/player")
 def player():
     # Get url from GitHub Gist
     video_url = ggs.get_url()
