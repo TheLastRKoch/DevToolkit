@@ -26,7 +26,7 @@ def favicon():
                                mimetype='image/vnd.microsoft.icon')
 
 
-@app.route("/player")
+@app.route("/")
 def player():
     # Get url from GitHub Gist
     video_url = ggs.get_url()
