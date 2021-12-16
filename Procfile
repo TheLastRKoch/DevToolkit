@@ -1,1 +1,1 @@
-web: gunicorn wsgi:player --log-file=-
+web: gunicorn wsgi --log-file=-
