@@ -1,8 +1,9 @@
-import os
-from os import environ as env
-from dotenv import load_dotenv
-from services import urlService, GithubGistService
 from flask import Flask, render_template, send_from_directory
+from services import urlService, GithubGistService
+from dotenv import load_dotenv
+from os import environ as env
+import json
+import os
 
 # Load environment variables
 load_dotenv()
@@ -27,6 +28,28 @@ def favicon():
 
 
 @app.route("/")
+def index():
+    data = {"msg": "Welcome to Dafnix UI"}
+    response = app.response_class(
+        response=json.dumps(data),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+
+@app.route("/status")
+def status():
+    data = {"msg": "Status Online"}
+    response = app.response_class(
+        response=json.dumps(data),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+
+@app.route("/player")
 def player():
     # Get url from GitHub Gist
     video_url = ggs.get_url()
