@@ -14,11 +14,24 @@
 
 <body>
     <style>
-       body {background-color: black;}
-      </style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: roboto;
+        }
+    </style>
+    {% if "Error" in identifier %}
+    <div style="padding: 75px;">
+        <iframe src="https://giphy.com/embed/lKWlXRBGltz2g" width="480" height="396" frameBorder="0" class="giphy-embed"
+            ></iframe>
+        <h2>There's no link to reproduce...</h2>
+    </div>
+    {% else %}
     <iframe width="1280" height="710" src="https://www.youtube.com/embed/{{identifier}}" title="YouTube video player"
         frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen></iframe>
+    {% endif %}
+
 </body>
 
 </html>

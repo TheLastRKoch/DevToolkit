@@ -55,7 +55,10 @@ def player():
     video_url = ggs.get_url()
 
     # Get identifier from URL
-    identifier = urlService.get_identifier(video_url)
+    if "Error" in video_url:
+        identifier = video_url
+    else:
+        identifier = urlService.get_identifier(video_url)
 
     # Send the identifier to the view
     return render_template("index.html", identifier=identifier)

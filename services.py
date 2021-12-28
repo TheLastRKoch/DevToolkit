@@ -1,16 +1,25 @@
 import re
 import requests
 import json
+import utils
+
 
 class urlService:
+    # TODO missing validations
     @classmethod
     def get_identifier(self, url):
-        #TODO Add validations
-        r =  re.search(r"(watch\?v=|\.be\/)([\-A-z\d]+)",url)
-        result = r.group(2)
-        if result == None:
+        try:
+            # TODO Add validations
+            r = re.search(r"(watch\?v=|\.be\/)([\-A-z\d]+)", url)
+            result = r.group(2)
+            if result is None:
+                return None
+            return result
+        except Exception as ex:
+            utils.log(
+                "Error", "Somethig went wrong trying to ge the identifier", ex)
             return None
-        return result
+
 
 class GithubGistService():
     def __init__(self, githubGist_url, githubAPI_token):
@@ -42,5 +51,6 @@ class GithubGistService():
         body = json.dumps({"files": {"PlayerURL": {"content": content}}})
         self.__patch_request(body)
 
-if __name__ == '__main__':    
+
+if __name__ == '__main__':
     pass
