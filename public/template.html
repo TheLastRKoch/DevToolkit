@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Devtoolkit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .editor {
+            font-family: Consolas, monospace;
+            height: 300px;
+            resize: vertical;
+        }
+        .main-content {
+            height: calc(100vh - 240px); /* Adjusted for navbar, footer, and new spacing */
+        }
+        .footer {
+            height: 40px;
+        }
+        .tab-container {
+            margin-top: 20px; /* Add space between navbar and tabs */
+        }
+    </style>
+</head>
+<body class="d-flex flex-column min-vh-100">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Devtoolkit</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid flex-grow-1 d-flex flex-column">
+        <div class="row flex-grow-1 main-content">
+            <div class="col-md-6 d-flex flex-column pe-3">
+                <div class="tab-container">
+                    <ul class="nav nav-tabs" id="leftTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="left-tab1-tab" data-bs-toggle="tab" data-bs-target="#left-tab1" type="button" role="tab" aria-controls="left-tab1" aria-selected="true">Input</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="left-tab2-tab" data-bs-toggle="tab" data-bs-target="#left-tab2" type="button" role="tab" aria-controls="left-tab2" aria-selected="false">Query</button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="tab-content flex-grow-1" id="leftTabContent">
+                    <div class="tab-pane fade show active h-100" id="left-tab1" role="tabpanel" aria-labelledby="left-tab1-tab">
+                        <textarea class="form-control editor h-100" id="editor1"></textarea>
+                    </div>
+                    <div class="tab-pane fade h-100" id="left-tab2" role="tabpanel" aria-labelledby="left-tab2-tab">
+                        <textarea class="form-control editor h-100" id="editor2"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 d-flex flex-column ps-3">
+                <div class="tab-container d-flex justify-content-between align-items-center">
+                    <ul class="nav nav-tabs" id="rightTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="right-tab1-tab" data-bs-toggle="tab" data-bs-target="#right-tab1" type="button" role="tab" aria-controls="right-tab1" aria-selected="true">Output</button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="tab-content flex-grow-1" id="rightTabContent">
+                    <div class="tab-pane fade show active h-100" id="right-tab1" role="tabpanel" aria-labelledby="right-tab1-tab">
+                        <textarea class="form-control editor h-100" id="editor3"></textarea>
+                    </div>
+                    <div class="tab-pane fade h-100" id="right-tab2" role="tabpanel" aria-labelledby="right-tab2-tab">
+                        <textarea class="form-control editor h-100" id="editor4"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-4 mb-3">
+            <div class="col-12">
+                <input type="text" class="form-control" id="textbox" placeholder="Enter text here">
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer bg-light">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-12 text-center py-2">
+                    &copy; <span id="currentYear"></span> Devtoolkit. All rights reserved.
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Add event listener for the Execute button
+        document.getElementById('executeBtn').addEventListener('click', function() {
+            alert('Execute button clicked!');
+            // Add your execution logic here
+        });
+
+        // Set the current year in the footer
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>

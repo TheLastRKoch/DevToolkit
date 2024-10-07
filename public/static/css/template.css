@@ -1,0 +1,14 @@
+.editor {
+    font-family: Consolas, monospace;
+    height: 300px;
+    resize: vertical;
+}
+.main-content {
+    height: calc(100vh - 240px); /* Adjusted for navbar, footer, and new spacing */
+}
+.footer {
+    height: 40px;
+}
+.tab-container {
+    margin-top: 20px; /* Add space between navbar and tabs */
+}
