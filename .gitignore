@@ -2,6 +2,7 @@
 .banner
 .bannerpy
 .vm
+/node_modules
 
 # config files
 .env
