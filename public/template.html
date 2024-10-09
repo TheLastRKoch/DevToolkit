@@ -5,27 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Devtoolkit</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .editor {
-            font-family: Consolas, monospace;
-            height: 300px;
-            resize: vertical;
-        }
-        .main-content {
-            height: calc(100vh - 240px); /* Adjusted for navbar, footer, and new spacing */
-        }
-        .footer {
-            height: 40px;
-        }
-        .tab-container {
-            margin-top: 20px; /* Add space between navbar and tabs */
-        }
-    </style>
+    <link rel="stylesheet" href="static/css/template.css">
 </head>
 <body class="d-flex flex-column min-vh-100">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">Devtoolkit</a>
+            <a class="navbar-brand" href="/">Devtoolkit</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -37,6 +22,16 @@
     </nav>
 
     <div class="container-fluid flex-grow-1 d-flex flex-column">
+        <div class="row mt-3">
+            <div class="col-md-6 d-flex flex-column pe-3">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                      <li class="breadcrumb-item"><a href="/">Home</a></li>
+                      <li class="breadcrumb-item active" aria-current="page">Template</li>
+                    </ol>
+                  </nav>    
+            </div>
+        </div>
         <div class="row flex-grow-1 main-content">
             <div class="col-md-6 d-flex flex-column pe-3">
                 <div class="tab-container">
@@ -51,10 +46,10 @@
                 </div>
                 <div class="tab-content flex-grow-1" id="leftTabContent">
                     <div class="tab-pane fade show active h-100" id="left-tab1" role="tabpanel" aria-labelledby="left-tab1-tab">
-                        <textarea class="form-control editor h-100" id="editor1"></textarea>
+                        <textarea class="form-control editor h-100" id="txtInput"></textarea>
                     </div>
                     <div class="tab-pane fade h-100" id="left-tab2" role="tabpanel" aria-labelledby="left-tab2-tab">
-                        <textarea class="form-control editor h-100" id="editor2"></textarea>
+                        <textarea class="form-control editor h-100" id="txtQuery"></textarea>
                     </div>
                 </div>
             </div>
@@ -68,7 +63,7 @@
                 </div>
                 <div class="tab-content flex-grow-1" id="rightTabContent">
                     <div class="tab-pane fade show active h-100" id="right-tab1" role="tabpanel" aria-labelledby="right-tab1-tab">
-                        <textarea class="form-control editor h-100" id="editor3"></textarea>
+                        <textarea class="form-control editor h-100" id="txtOutput"></textarea>
                     </div>
                     <div class="tab-pane fade h-100" id="right-tab2" role="tabpanel" aria-labelledby="right-tab2-tab">
                         <textarea class="form-control editor h-100" id="editor4"></textarea>
@@ -78,7 +73,7 @@
         </div>
         <div class="row mt-4 mb-3">
             <div class="col-12">
-                <input type="text" class="form-control" id="textbox" placeholder="Enter text here">
+              
             </div>
         </div>
     </div>
