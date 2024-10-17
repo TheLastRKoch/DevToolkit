@@ -1,5 +1,5 @@
 function getTags(inputValue) {
-    regex = /\[(.+?)\]/g
+    regex = /(\@\[.+?\])/g
 
     const tagList = [];
 
@@ -7,12 +7,12 @@ function getTags(inputValue) {
         tagList.push({ key: match[1], value: "" });
     }
     // TODO: add validation currentStatus = "Error trying to get the tags from the input"
-    return tagList
 
+    return tagList
 }
 
 function printTags(tagList) {
-    console.log(tagList)
+    
     queryText = ""
     for (const tag of tagList) {
         queryText += tag.key + "=" + tag.value + "\n"
@@ -38,8 +38,6 @@ function replaceTags(inputValue, tagList) {
     for (const tag of tagList) {
         inputValue = inputValue.replaceAll(tag.key, tag.value)
     }
-    inputValue = inputValue.replaceAll("[", "")
-    inputValue = inputValue.replaceAll("]", "")
     return inputValue
 }
 
