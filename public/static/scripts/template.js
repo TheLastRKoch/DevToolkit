@@ -61,5 +61,10 @@ document.getElementById('txtQuery').addEventListener('focusout', function () {
     quill.setText(outputText)
 });
 
+document.getElementById('btnClearAll').addEventListener('click', function(){
+    document.getElementById('txtInput').value = ""
+    document.getElementById('txtQuery').value = ""
+    quill.setText("")
+})
 
 document.getElementById('currentYear').textContent = new Date().getFullYear();
