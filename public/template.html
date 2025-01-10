@@ -28,7 +28,7 @@
 
     <div class="container-fluid flex-grow-1 d-flex flex-column">
         <div class="row mt-3">
-            <div class="col-md-6 d-flex flex-column pe-3">
+            <div class="col-md-4 d-flex flex-column pe-3">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
                         <li class="breadcrumb-item"><a href="/">Home</a></li>
@@ -36,8 +36,17 @@
                     </ol>
                 </nav>
             </div>
+            <div class="dropdown col-md-4 d-flex flex-column pe-3">
+                <button class="btn btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Options
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#">Clear variables</a></li>
+                    <li><a class="dropdown-item" href="#">Clear all</a></li>
+                </ul>
+            </div>
         </div>
-        <div class="row flex-grow-1 main-content">
+        <div class="row flex-grow-1 main-content mt-3">
             <div class="col-md-6 d-flex flex-column pe-3">
                 <div class="tab-container">
                     <ul class="nav nav-tabs" id="leftTab" role="tablist">
