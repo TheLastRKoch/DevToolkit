@@ -1,17 +1,29 @@
+//Init tagList for all the session
+tagList = [];
+tagListReassembled = [];
+
+function clearAll(){
+    inputValue = ""
+    document.getElementById('txtInput').value = ""
+    document.getElementById('txtQuery').value = ""
+    quill.setText("")
+}
+
 function getTags(inputValue) {
     regex = /(\@\[.+?\])/g
 
-    const tagList = [];
 
     while ((match = regex.exec(inputValue)) !== null) {
-        tagList.push({ key: match[1], value: "" });
+        tag = { key: match[1], value: "" }
+        if (!tagList.some(item => JSON.stringify(item) === JSON.stringify(tag))){
+            tagList.push(tag);
+        }
     }
     // TODO: add validation currentStatus = "Error trying to get the tags from the input"
-
-    return tagList
 }
 
-function printTags(tagList) {
+
+function printTags() {
     
     queryText = ""
     for (const tag of tagList) {
@@ -24,7 +36,6 @@ function printTags(tagList) {
 function reassemblyTags(tagsText) {
     regex = /(.+?)=(.+?)$/gm
 
-    const tagListReassembled = [];
 
     while ((match = regex.exec(tagsText)) !== null) {
         tagListReassembled.push({ key: match[1], value: match[2] });
@@ -48,8 +59,8 @@ function renderQuery() {
 
 document.getElementById('txtInput').addEventListener('focusout', function () {
     inputValue = document.getElementById('txtInput').value
-    tagList = getTags(inputValue)
-    tagsText = printTags(tagList)
+    getTags(inputValue)
+    tagsText = printTags()
     document.getElementById('txtQuery').value = tagsText
 });
 
@@ -62,9 +73,7 @@ document.getElementById('txtQuery').addEventListener('focusout', function () {
 });
 
 document.getElementById('btnClearAll').addEventListener('click', function(){
-    document.getElementById('txtInput').value = ""
-    document.getElementById('txtQuery').value = ""
-    quill.setText("")
+    clearAll()
 })
 
 document.getElementById('currentYear').textContent = new Date().getFullYear();
