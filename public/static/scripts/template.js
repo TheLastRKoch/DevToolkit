@@ -58,7 +58,7 @@ document.getElementById('txtQuery').addEventListener('focusout', function () {
     queryText = document.getElementById('txtQuery').value
     tagListReassembled = reassemblyTags(queryText)
     outputText = replaceTags(inputValue, tagListReassembled)
-    document.getElementById('txtOutput').value = outputText
+    quill.setText(outputText)
 });
 
 
