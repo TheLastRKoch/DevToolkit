@@ -7,6 +7,8 @@ function clearAll(){
     document.getElementById('txtInput').value = ""
     document.getElementById('txtQuery').value = ""
     quill.setText("")
+    tagList = []
+    tagListReassembled = []
 }
 
 function getTags(inputValue) {
