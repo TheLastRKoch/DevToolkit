@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeMirror 6 Basic Example</title>
+</head>
+
+<body>
+    <form>
+        <textarea id="editor">console.log('Hello, world!');</textarea>
+        <button type="submit">Submit Form</button> <!-- Optional: To test syncing -->
+    </form>
+
+    <script type="module">
+        import { EditorView, keymap, lineNumbers } from "https://cdn.jsdelivr.net/npm/@codemirror/view@6/+esm";
+        import { defaultKeymap } from "https://cdn.jsdelivr.net/npm/@codemirror/commands@6/+esm";
+        import { syntaxHighlighting, defaultHighlightStyle } from "https://cdn.jsdelivr.net/npm/@codemirror/language@6/+esm";
+        import { javascript } from "https://cdn.jsdelivr.net/npm/@codemirror/lang-javascript@6/+esm";
+
+        function editorFromTextArea(textarea, extensions) {
+            let view = new EditorView({
+                doc: textarea.value,
+                extensions
+            });
+            textarea.parentNode.insertBefore(view.dom, textarea);
+            textarea.style.display = "none";
+            if (textarea.form) {
+                textarea.form.addEventListener("submit", () => {
+                    textarea.value = view.state.doc.toString();
+                });
+            }
+            return view;
+        }
+
+        // Define extensions for features
+        const extensions = [
+            lineNumbers(),
+            keymap.of(defaultKeymap),
+            javascript(),
+            syntaxHighlighting(defaultHighlightStyle)
+        ];
+
+        // Initialize the editor
+        const textarea = document.getElementById('editor');
+        editorFromTextArea(textarea, extensions);
+    </script>
+</body>
+
+</html>

@@ -4,14 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Devtoolkit - Adapted</title>
+    <title>Devtoolkit</title>
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="static/css/template.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 </head>
 
 <body class="d-flex flex-column min-vh-100 bg-light">
-
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand" href="#">
@@ -19,57 +19,48 @@
             </a>
         </div>
     </nav>
-
     <div class="container-fluid flex-grow-1 d-flex flex-column py-3">
-
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-2">
-                <li class="breadcrumb-item"><a href="#" class="text-decoration-none">Home</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Template</li>
-            </ol>
-        </nav>
-
-        <div class="row g-3 flex-grow-1 pb-3">
-
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <nav aria-label="breadcrumb" class="mb-0">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="#" class="text-decoration-none">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Template</li>
+                </ol>
+            </nav>
+            <input type="text" class="form-control" placeholder="default" style="max-width: 300px;">
+        </div>
+        <div class="row g-3 flex-grow-1">
             <div class="col-md-6 d-flex flex-column">
                 <div class="card shadow-sm flex-grow-1 d-flex flex-column">
-                    <div class="card-header p-0 border-bottom-0 bg-white">
-                        <ul class="nav nav-tabs card-header-tabs m-0 ps-2" id="leftTab" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active border-top-0 border-start-0" id="left-tab1-tab"
-                                    data-bs-toggle="tab" data-bs-target="#left-tab1" type="button" role="tab">
-                                    <i class="bi bi-file-earmark-text me-1"></i> Input
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link border-top-0" id="left-tab2-tab" data-bs-toggle="tab"
-                                    data-bs-target="#left-tab2" type="button" role="tab">
-                                    <i class="bi bi-database me-1"></i> Variables
-                                </button>
-                            </li>
-                        </ul>
-                    </div>
-                    <div class="card-body p-0 flex-grow-1 d-flex flex-column overflow-hidden border-top">
-                        <div class="tab-content flex-grow-1 d-flex flex-column">
-                            <div class="tab-pane fade show active h-100 d-flex flex-column" id="left-tab1"
-                                role="tabpanel">
-                                <textarea class="form-control font-monospace flex-grow-1 p-3 rounded-0 border-0"
-                                    id="txtInput"></textarea>
-                            </div>
-                            <div class="tab-pane fade h-100 d-flex flex-column" id="left-tab2" role="tabpanel">
-                                <textarea class="form-control font-monospace flex-grow-1 p-3 rounded-0 border-0"
-                                    id="txtQuery"></textarea>
-                            </div>
+                    <ul class="nav nav-tabs" id="myTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="input-tab" data-bs-toggle="tab"
+                                data-bs-target="#input-pane" type="button" role="tab" aria-selected="true">
+                                Input
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="variables-tab" data-bs-toggle="tab"
+                                data-bs-target="#variables-pane" type="button" role="tab" aria-selected="false">
+                                Variables
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content shadow-sm flex-grow-1 d-flex flex-column" id="myTabContent">
+                        <div class="tab-pane fade show active" id="input-pane" role="tabpanel"
+                            aria-labelledby="input-tab">
+                            <textarea id="txtInput" class="form-control editor full-fill h-100"></textarea>
+                        </div>
+                        <div class="tab-pane fade" id="variables-pane" role="tabpanel" aria-labelledby="variables-tab">
+                            <textarea id="txtVariables" class="form-control editor full-fill h-100"></textarea>
                         </div>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-6 d-flex flex-column">
                 <div class="card shadow-sm flex-grow-1 d-flex flex-column">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
                         <span class="fw-bold text-secondary"><i class="bi bi-terminal me-2"></i>Output</span>
-
                         <div class="btn-group" role="group">
                             <button type="button" class="btn btn-outline-primary btn-sm" id="btnRun">
                                 <i class="bi bi-clipboard"></i> Copy
@@ -82,13 +73,16 @@
                                 title="Clear Variables">
                                 <i class="bi bi-x-diamond"></i> Clear Vars
                             </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnDictate"
+                                title="Copy Output">
+                                <i class="bi bi-bootstrap-reboot"></i>
+                            </button>
                             <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
                                 data-bs-target="#deleteModal" title="Clear All">
-                                <i class="bi bi-trash"></i>
+                                <i class="bi bi-trash"></i> Clear
                             </button>
                         </div>
                     </div>
-
                     <div class="card-body p-0 flex-grow-1 d-flex flex-column">
                         <div id="quill-wrapper" class="d-flex flex-column flex-grow-1">
                             <div id="txtOutput"
@@ -97,112 +91,20 @@
                     </div>
                 </div>
             </div>
-
         </div>
     </div>
-
     <footer class="bg-white border-top mt-auto">
-        <div class="container-fluid text-center py-2 text-muted small">
-            &copy; <span id="currentYear"></span> Devtoolkit. All rights reserved.
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-12 text-center py-3 text-muted small">
+                    &copy; <span id="currentYear"></span> Devtoolkit. All rights reserved.
+                </div>
+            </div>
         </div>
     </footer>
-
-    <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm
-                        Reset</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    Are you sure you want to clear <strong>all</strong> inputs and outputs? This cannot be undone.
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="confirmClearAll">Yes, Clear All</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="liveToast" class="toast align-items-center text-bg-dark border-0" role="alert" aria-live="assertive"
-            aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body" id="toastMessage">
-                    Action successful
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                    aria-label="Close"></button>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
     <script src="static/scripts/quill.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-
-
-            // 2. Set Year
-            document.getElementById('currentYear').textContent = new Date().getFullYear();
-
-            // 3. Feedback System (Toast)
-            const toastEl = document.getElementById('liveToast');
-            const toastBody = document.getElementById('toastMessage');
-            const toast = new bootstrap.Toast(toastEl);
-
-            function showToast(msg, type = 'dark') {
-                toastBody.textContent = msg;
-                toastEl.className = `toast align-items-center text-bg-${type} border-0`;
-                toast.show();
-            }
-
-            // 4. Action: Run (Mock logic)
-            document.getElementById('btnRun').addEventListener('click', () => {
-                const inputVal = document.getElementById('txtInput').value;
-                if (!inputVal) {
-                    showToast('Please enter text in the Input tab first.', 'warning');
-                    return;
-                }
-                // Simulate processing
-                quill.setText(`Processed: ${inputVal}`);
-                showToast('Processing complete', 'success');
-            });
-
-            // 5. Action: Copy
-            document.getElementById('btnCopy').addEventListener('click', () => {
-                const text = quill.getText();
-                navigator.clipboard.writeText(text).then(() => {
-                    showToast('Output copied to clipboard');
-                });
-            });
-
-            // 6. Action: Clear Variables (Mock)
-            document.getElementById('btnClearVars').addEventListener('click', () => {
-                // Logic to clear variables would go here
-                showToast('Variables cleared');
-            });
-
-            // 7. Action: Confirm Clear All
-            document.getElementById('confirmClearAll').addEventListener('click', () => {
-                // Clear Textareas
-                document.getElementById('txtInput').value = '';
-                document.getElementById('txtQuery').value = '';
-                // Clear Quill
-                quill.setText('');
-
-                // Hide Modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
-                modal.hide();
-
-                showToast('All fields cleared', 'danger');
-            });
-        });
-    </script>
 </body>
 
 </html>
