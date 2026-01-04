@@ -31,7 +31,7 @@
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
                         <li class="breadcrumb-item"><a href="/">Home</a></li>
-                        <li class="breadcrumb-item active" aria-current="page">Template</li>
+                        <li class="breadcrumb-item active" aria-current="page">Editor</li>
                     </ol>
                 </nav>
             </div>
@@ -46,40 +46,7 @@
             </div>
         </div>
         <div class="row flex-grow-1 main-content mt-3">
-            <div class="col-md-6 d-flex flex-column pe-3 mb-3">
-                <div class="tab-container">
-                    <ul class="nav nav-tabs" id="leftTab" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="left-tab1-tab" data-bs-toggle="tab"
-                                data-bs-target="#left-tab1" type="button" role="tab" aria-controls="left-tab1"
-                                aria-selected="true">Input</button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="left-tab2-tab" data-bs-toggle="tab" data-bs-target="#left-tab2"
-                                type="button" role="tab" aria-controls="left-tab2" aria-selected="false">Query</button>
-                        </li>
-                    </ul>
-                </div>
-                <div class="tab-content flex-grow-1" id="leftTabContent">
-                    <div class="tab-pane fade show active h-100" id="left-tab1" role="tabpanel"
-                        aria-labelledby="left-tab1-tab">
-                        <textarea class="form-control font-monospace h-100" id="txtInput"></textarea>
-                    </div>
-                    <div class="tab-pane fade h-100" id="left-tab2" role="tabpanel" aria-labelledby="left-tab2-tab">
-                        <textarea class="form-control font-monospace h-100" id="txtQuery"></textarea>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6 d-flex flex-column ps-3 mt-3">
-                <div class="tab-container d-flex justify-content-between align-items-center">
-                    <ul class="nav nav-tabs" id="rightTab" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="right-tab1-tab" data-bs-toggle="tab"
-                                data-bs-target="#right-tab1" type="button" role="tab" aria-controls="right-tab1"
-                                aria-selected="true">Output</button>
-                        </li>
-                    </ul>
-                </div>
+            <div class="col-md-12 d-flex flex-column ps-3">
                 <div class="tab-content flex-grow-1" id="rightTabContent">
                     <div class="tab-pane fade show active h-100" id="right-tab1" role="tabpanel"
                         aria-labelledby="right-tab1-tab">
@@ -88,22 +55,18 @@
                 </div>
             </div>
         </div>
-        <div class="row mt-4 mb-3">
-            <div class="col-12">
 
-            </div>
-        </div>
-    </div>
-
-    <footer class="bg-light">
-        <div class="container-fluid">
-            <div class="row">
-                <div class="col-12 text-center py-2">
-                    &copy; <span id="currentYear"></span> Devtoolkit. All rights reserved.
+        <footer class="bg-light">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-12 text-center py-2">
+                        &copy; <span id="currentYear"></span> Devtoolkit. All rights reserved.
+                    </div>
                 </div>
             </div>
-        </div>
-    </footer>
+        </footer>
+    </div>
+
 
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 
