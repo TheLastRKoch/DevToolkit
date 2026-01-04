@@ -14,6 +14,10 @@ app.get('/template', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'template.html'));
 });
 
+app.get('/editor', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'editor.html'));
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });
