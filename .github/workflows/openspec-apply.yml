@@ -1,0 +1,159 @@
+name: Apply OpenSpec change
+
+on:
+  workflow_dispatch:
+    inputs:
+      change:
+        description: OpenSpec change directory under openspec/changes
+        required: true
+        type: string
+      task:
+        description: Task ID from tasks.md, or all for every pending task
+        required: true
+        default: all
+        type: string
+      model_provider:
+        description: Generic model provider name
+        required: true
+        default: deepseek
+        type: string
+      model_name:
+        description: Model identifier
+        required: true
+        default: deepseek-chat
+        type: string
+      model_endpoint:
+        description: OpenAI-compatible API base URL
+        required: true
+        default: https://api.deepseek.com
+        type: string
+      validation_command:
+        description: Repository validation command run before PR creation
+        required: true
+        default: openspec validate --all --json
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: openspec-apply-${{ inputs.change }}-${{ inputs.task }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OPENSPEC_CHANGE: ${{ inputs.change }}
+      OPENSPEC_TASK: ${{ inputs.task }}
+      MODEL_PROVIDER: ${{ inputs.model_provider }}
+      MODEL_NAME: ${{ inputs.model_name }}
+      MODEL_ENDPOINT: ${{ inputs.model_endpoint }}
+      MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+      VALIDATION_COMMAND: ${{ inputs.validation_command }}
+    steps:
+      - name: Validate model configuration
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${MODEL_API_KEY:-}" ]]; then
+            echo "::error::MODEL_API_KEY repository secret is required for the selected model provider"
+            exit 1
+          fi
+
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install OpenSpec CLI
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --global @fission-ai/openspec
+          openspec --version
+
+      - name: Validate change and create branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          change = os.environ["OPENSPEC_CHANGE"]
+          if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", change) or ".." in Path(change).parts:
+              raise SystemExit("Invalid OpenSpec change name")
+          directory = Path("openspec/changes") / change
+          required = [directory / "proposal.md", directory / "design.md", directory / "tasks.md"]
+          required.extend(sorted((directory / "specs").glob("**/*.md")))
+          if not directory.is_dir() or not (directory / "specs").is_dir():
+              raise SystemExit(f"OpenSpec change does not exist or has no specs: {directory}")
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise SystemExit("Missing OpenSpec artifacts: " + ", ".join(missing))
+          subprocess.run(["openspec", "validate", change, "--json"], check=True)
+          branch = f"openspec/{change.replace('/', '-')}-{os.environ['GITHUB_RUN_ID']}"
+          subprocess.run(["git", "switch", "--create", branch], check=True)
+          print(f"Created branch {branch}")
+          PY
+
+      - name: Apply selected OpenSpec task with model
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/openspec_apply.py
+
+      - name: Run repository validation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -lc "$VALIDATION_COMMAND"
+
+      - name: Commit and push implementation
+        id: publish
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "::error::No implementation diff was generated"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "Apply OpenSpec change ${OPENSPEC_CHANGE}"
+          branch="$(git branch --show-current)"
+          git push --set-upstream origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ steps.publish.outputs.source_commit }}
+          BRANCH: ${{ steps.publish.outputs.branch }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gh pr create \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head "$BRANCH" \
+            --title "Apply OpenSpec change: ${OPENSPEC_CHANGE}" \
+            --body "$(cat <<EOF
+          ## OpenSpec automation
+
+          - Change: \`${OPENSPEC_CHANGE}\`
+          - Task selection: \`${OPENSPEC_TASK}\`
+          - Model: \`${MODEL_PROVIDER}/${MODEL_NAME}\`
+          - Source commit: \`${SOURCE_COMMIT}\`
+          - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - Validation: \`${VALIDATION_COMMAND}\`
+
+          Generated by the manually dispatched OpenSpec apply workflow. Review all model-generated changes before merging.
+          EOF
+          )"
