@@ -1,81 +1,112 @@
-//Init tagList for all the session
-tagList = [];
-tagListReassembled = [];
+(function () {
+    const sessionId = window.location.pathname.match(/^\/template\/([1-9][0-9]*)$/)?.[1];
+    if (!sessionId) {
+        return;
+    }
 
-function clearAll(){
-    inputValue = ""
-    document.getElementById('txtInput').value = ""
-    document.getElementById('txtQuery').value = ""
-    quill.setText("")
-    tagList = []
-    tagListReassembled = []
-}
+    const input = document.getElementById('txtInput');
+    const output = document.getElementById('txtOutput');
+    const title = document.getElementById('titleInput');
+    const variablesPanel = document.getElementById('variablesPanel');
+    let dirty = false;
+    let state;
 
-function getTags(inputValue) {
-    regex = /(\@\[.+?\])/g
-
-
-    while ((match = regex.exec(inputValue)) !== null) {
-        tag = { key: match[1], value: "" }
-        if (!tagList.some(item => JSON.stringify(item) === JSON.stringify(tag))){
-            tagList.push(tag);
+    async function request(url, options) {
+        const response = await fetch(url, {
+            headers: { 'Content-Type': 'application/json' },
+            ...options,
+        });
+        if (!response.ok) {
+            throw new Error(await response.text());
         }
+        return response.json();
     }
-    // TODO: add validation currentStatus = "Error trying to get the tags from the input"
-}
 
-
-function printTags() {
-    
-    queryText = ""
-    for (const tag of tagList) {
-        queryText += tag.key + "=" + tag.value + "\n"
+    function markDirty() {
+        dirty = true;
     }
-    return queryText
-}
 
-
-function reassemblyTags(tagsText) {
-    regex = /(.+?)=(.+?)$/gm
-
-
-    while ((match = regex.exec(tagsText)) !== null) {
-        tagListReassembled.push({ key: match[1], value: match[2] });
+    function renderVariables() {
+        variablesPanel.replaceChildren();
+        state.variables.forEach((variable) => {
+            const wrapper = document.createElement('div');
+            const label = document.createElement('label');
+            label.className = 'form-label small mb-1';
+            label.textContent = `@[${variable.key}]`;
+            label.htmlFor = `variable-${variable.key}`;
+            const field = document.createElement('input');
+            field.className = 'form-control form-control-sm';
+            field.id = `variable-${variable.key}`;
+            field.type = 'text';
+            field.value = variable.value;
+            field.addEventListener('input', async () => {
+                markDirty();
+                state = await request(`/api/template/${sessionId}/variables/${encodeURIComponent(variable.key)}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ value: field.value }),
+                });
+                render();
+            });
+            wrapper.append(label, field);
+            variablesPanel.append(wrapper);
+        });
     }
-    // TODO: add validation currentStatus = "Error trying to get the tags from the input"
-    return tagListReassembled
-}
 
-
-function replaceTags(inputValue, tagList) {
-    for (const tag of tagList) {
-        inputValue = inputValue.replaceAll(tag.key, tag.value)
+    function render() {
+        input.value = state.text;
+        title.value = state.title;
+        output.value = state.rendered;
+        document.title = state.title || 'Devtoolkit';
+        renderVariables();
     }
-    return inputValue
-}
 
-function renderQuery() {
-    outputValue = replaceTags(inputValue, tagList)
-    document.getElementById('txtOutput').value = outputValue
-}
+    input.addEventListener('input', async () => {
+        markDirty();
+        state = await request(`/api/template/${sessionId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ text: input.value }),
+        });
+        render();
+    });
 
-document.getElementById('txtInput').addEventListener('focusout', function () {
-    inputValue = document.getElementById('txtInput').value
-    getTags(inputValue)
-    tagsText = printTags()
-    document.getElementById('txtQuery').value = tagsText
-});
+    title.addEventListener('input', async () => {
+        markDirty();
+        state = await request(`/api/template/${sessionId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ title: title.value }),
+        });
+        document.title = title.value || 'Devtoolkit';
+    });
 
+    document.getElementById('btnClearVariables').addEventListener('click', async () => {
+        markDirty();
+        state = await request(`/api/template/${sessionId}/clear-variables`, { method: 'POST' });
+        render();
+    });
 
-document.getElementById('txtQuery').addEventListener('focusout', function () {
-    queryText = document.getElementById('txtQuery').value
-    tagListReassembled = reassemblyTags(queryText)
-    outputText = replaceTags(inputValue, tagListReassembled)
-    quill.setText(outputText)
-});
+    document.getElementById('btnClearAll').addEventListener('click', async () => {
+        markDirty();
+        state = await request(`/api/template/${sessionId}/clear-all`, { method: 'POST' });
+        render();
+    });
 
-document.getElementById('btnClearAll').addEventListener('click', function(){
-    clearAll()
-})
+    document.getElementById('btnNewSession').addEventListener('click', async () => {
+        const newSession = await request('/api/template/sessions', { method: 'POST' });
+        window.open(newSession.path, '_blank', 'noopener');
+    });
 
-document.getElementById('currentYear').textContent = new Date().getFullYear();
+    window.addEventListener('beforeunload', (event) => {
+        if (dirty) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    });
+
+    document.getElementById('currentYear').textContent = new Date().getFullYear();
+    request(`/api/template/${sessionId}`).then((loadedState) => {
+        state = loadedState;
+        render();
+    }).catch((error) => {
+        output.value = `Unable to load session: ${error.message}`;
+    });
+}());
