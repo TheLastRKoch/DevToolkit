@@ -22,17 +22,27 @@ The model adapter accepts any compatible provider through:
 ## Dispatching
 
 1. Open **Actions → Apply OpenSpec change → Run workflow**.
-2. Enter the change directory name, for example
+2. Enter `source_ref` with the branch, tag, or commit SHA to use as the source,
+   for example `develop`, `feature/my-change`, `v1.2.0`, or
+   `a1b2c3d4`.
+3. Enter the change directory name, for example
    `add-github-actions-openspec-apply`.
-3. Enter a task ID from that change's `tasks.md`, or `all` to apply every
+4. Enter a task ID from that change's `tasks.md`, or `all` to apply every
    pending task in order.
-4. Keep or override the model and validation inputs.
+5. Keep or override the model and validation inputs.
 
-The workflow validates the change before creating a branch. It then asks the
-configured model for a unified diff, applies it on a run-specific branch, runs
-the validation command, and opens one pull request only when a non-empty diff
-passes validation. OpenSpec artifacts remain in the branch so the PR includes
-the task progress and planning context.
+The workflow checks out the selected source ref, resolves it to a commit, and
+validates the OpenSpec change and task from that exact revision before creating
+a branch. It then asks the configured model for a unified diff, applies it on
+a run-specific branch derived from the change, source ref, and workflow run,
+runs the validation command, and opens one pull request only when a non-empty
+diff passes validation. The pull request records both the requested source ref
+and resolved source commit.
+
+If the source ref is missing, invalid, unavailable, or does not contain the
+requested change, the workflow stops before model invocation. A branch or tag
+is resolved once at checkout, so later movement of that branch cannot change
+the source revision used by the run.
 
 If a run fails before publication, correct the reported input or artifact and
 dispatch it again. If a branch was pushed but PR creation failed, use the

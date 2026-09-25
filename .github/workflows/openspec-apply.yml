@@ -3,6 +3,10 @@ name: Apply OpenSpec change
 on:
   workflow_dispatch:
     inputs:
+      source_ref:
+        description: Branch, tag, or commit SHA to use as the source revision
+        required: true
+        type: string
       change:
         description: OpenSpec change directory under openspec/changes
         required: true
@@ -48,6 +52,7 @@ jobs:
     env:
       OPENSPEC_CHANGE: ${{ inputs.change }}
       OPENSPEC_TASK: ${{ inputs.task }}
+      SOURCE_REF: ${{ inputs.source_ref }}
       MODEL_PROVIDER: ${{ inputs.model_provider }}
       MODEL_NAME: ${{ inputs.model_name }}
       MODEL_ENDPOINT: ${{ inputs.model_endpoint }}
@@ -66,6 +71,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.source_ref }}
           fetch-depth: 0
 
       - name: Install OpenSpec CLI
@@ -75,7 +81,8 @@ jobs:
           npm install --global @fission-ai/openspec
           openspec --version
 
-      - name: Validate change and create branch
+      - name: Validate source and change
+        id: source
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -84,6 +91,23 @@ jobs:
           import re
           import subprocess
           from pathlib import Path
+
+          source_ref = os.environ["SOURCE_REF"].strip()
+          if (
+              not source_ref
+              or source_ref.startswith("-")
+              or any(character.isspace() or ord(character) < 32 for character in source_ref)
+              or any(token in source_ref for token in ("..", "@{"))
+          ):
+              raise SystemExit("Invalid source ref: use a branch, tag, or commit SHA")
+          try:
+              source_commit = subprocess.check_output(
+                  ["git", "rev-parse", "--verify", f"{source_ref}^{{commit}}"],
+                  text=True,
+                  stderr=subprocess.STDOUT,
+              ).strip()
+          except subprocess.CalledProcessError as error:
+              raise SystemExit(f"Source ref is unavailable: {source_ref}") from error
 
           change = os.environ["OPENSPEC_CHANGE"]
           if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", change) or ".." in Path(change).parts:
@@ -97,8 +121,21 @@ jobs:
           if missing:
               raise SystemExit("Missing OpenSpec artifacts: " + ", ".join(missing))
           subprocess.run(["openspec", "validate", change, "--json"], check=True)
-          branch = f"openspec/{change.replace('/', '-')}-{os.environ['GITHUB_RUN_ID']}"
-          subprocess.run(["git", "switch", "--create", branch], check=True)
+          source_component = re.sub(r"[^A-Za-z0-9._-]+", "-", source_ref).strip("-")
+          branch = f"openspec/{change.replace('/', '-')}-{source_component}-{os.environ['GITHUB_RUN_ID']}"
+          if subprocess.run(
+              ["git", "ls-remote", "--exit-code", "--heads", "origin", f"refs/heads/{branch}"],
+              stdout=subprocess.DEVNULL,
+              stderr=subprocess.DEVNULL,
+              check=False,
+          ).returncode == 0:
+              raise SystemExit(f"Generated branch already exists: {branch}")
+          subprocess.run(["git", "switch", "--create", branch, source_commit], check=True)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"source_ref={source_ref}\n")
+              output.write(f"source_commit={source_commit}\n")
+              output.write(f"branch={branch}\n")
+          print(f"Using source ref {source_ref} at {source_commit}")
           print(f"Created branch {branch}")
           PY
 
@@ -128,6 +165,10 @@ jobs:
           git add --all
           git commit -m "Apply OpenSpec change ${OPENSPEC_CHANGE}"
           branch="$(git branch --show-current)"
+          if [[ "$branch" != "${{ steps.source.outputs.branch }}" ]]; then
+            echo "::error::Generated branch changed unexpectedly"
+            exit 1
+          fi
           git push --set-upstream origin "$branch"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "source_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -136,6 +177,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_COMMIT: ${{ steps.publish.outputs.source_commit }}
+          SOURCE_REF: ${{ steps.source.outputs.source_ref }}
+          RESOLVED_SOURCE_COMMIT: ${{ steps.source.outputs.source_commit }}
           BRANCH: ${{ steps.publish.outputs.branch }}
         shell: bash
         run: |
@@ -149,6 +192,8 @@ jobs:
 
           - Change: \`${OPENSPEC_CHANGE}\`
           - Task selection: \`${OPENSPEC_TASK}\`
+          - Source ref: \`${SOURCE_REF}\`
+          - Resolved source commit: \`${RESOLVED_SOURCE_COMMIT}\`
           - Model: \`${MODEL_PROVIDER}/${MODEL_NAME}\`
           - Source commit: \`${SOURCE_COMMIT}\`
           - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
