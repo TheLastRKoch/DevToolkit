@@ -8,6 +8,10 @@
     const output = document.getElementById('txtOutput');
     const title = document.getElementById('titleInput');
     const variablesPanel = document.getElementById('variablesPanel');
+    const variablesError = document.getElementById('variablesError');
+    const templateTab = document.getElementById('templateTab');
+    const variablesTab = document.getElementById('variablesTab');
+    const templatePanel = document.getElementById('templatePanel');
     let dirty = false;
     let state;
 
@@ -26,8 +30,19 @@
         dirty = true;
     }
 
+    function showVariablesError(error) {
+        variablesError.textContent = `Unable to synchronize variables: ${error.message}`;
+        variablesError.hidden = false;
+    }
+
+    function clearVariablesError() {
+        variablesError.textContent = '';
+        variablesError.hidden = true;
+    }
+
     function renderVariables() {
-        variablesPanel.replaceChildren();
+        const fields = variablesPanel.firstElementChild;
+        fields.replaceChildren();
         state.variables.forEach((variable) => {
             const wrapper = document.createElement('div');
             const label = document.createElement('label');
@@ -48,7 +63,7 @@
                 render();
             });
             wrapper.append(label, field);
-            variablesPanel.append(wrapper);
+            fields.append(wrapper);
         });
     }
 
@@ -60,6 +75,16 @@
         renderVariables();
     }
 
+    function selectTab(tab) {
+        const showVariables = tab === 'variables';
+        templateTab.classList.toggle('active', !showVariables);
+        variablesTab.classList.toggle('active', showVariables);
+        templateTab.setAttribute('aria-selected', String(!showVariables));
+        variablesTab.setAttribute('aria-selected', String(showVariables));
+        templatePanel.hidden = showVariables;
+        variablesPanel.hidden = !showVariables;
+    }
+
     input.addEventListener('input', async () => {
         markDirty();
         state = await request(`/api/template/${sessionId}`, {
@@ -67,6 +92,27 @@
             body: JSON.stringify({ text: input.value }),
         });
         render();
+    });
+
+    templateTab.addEventListener('click', () => {
+        selectTab('template');
+    });
+
+    variablesTab.addEventListener('click', async () => {
+        if (variablesTab.classList.contains('active')) {
+            return;
+        }
+        clearVariablesError();
+        try {
+            state = await request(`/api/template/${sessionId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ syncVariables: true }),
+            });
+            render();
+            selectTab('variables');
+        } catch (error) {
+            showVariablesError(error);
+        }
     });
 
     title.addEventListener('input', async () => {

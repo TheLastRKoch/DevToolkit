@@ -12,11 +12,6 @@
     <nav class="navbar navbar-dark bg-dark">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">Devtoolkit</a>
-            <div class="d-flex align-items-center gap-2">
-                <label class="text-white mb-0" for="titleInput">Title</label>
-                <input id="titleInput" class="form-control form-control-sm" type="text" aria-label="Title">
-                <button id="btnNewSession" class="btn btn-outline-light btn-sm" type="button">New session</button>
-            </div>
         </div>
     </nav>
 
@@ -30,20 +25,40 @@
                     </ol>
                 </nav>
             </div>
-            <div class="col-md-6 text-end">
+            <div class="col-md-6 d-flex justify-content-end align-items-center gap-2">
+                <label class="mb-0" for="titleInput">Title</label>
+                <input id="titleInput" class="form-control form-control-sm w-auto" type="text" aria-label="Title">
+                <button id="btnNewSession" class="btn btn-outline-primary btn-sm" type="button">New session</button>
                 <button id="btnClearVariables" class="btn btn-outline-secondary btn-sm" type="button">Clear variables</button>
                 <button id="btnClearAll" class="btn btn-outline-danger btn-sm" type="button">Clear all</button>
             </div>
         </div>
         <div class="row flex-grow-1 mt-3">
             <section class="col-md-6 d-flex flex-column mb-3">
-                <label class="form-label" for="txtInput">Template</label>
-                <textarea class="form-control font-monospace flex-grow-1" id="txtInput"
-                    placeholder="Write text with tokens such as @[name]"></textarea>
-            </section>
-            <section class="col-md-3 mb-3">
-                <h2 class="h6">Variables</h2>
-                <div id="variablesPanel" class="d-flex flex-column gap-2"></div>
+                <div class="d-flex flex-column flex-grow-1" id="editorTabs">
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="templateTab" type="button" role="tab"
+                                aria-controls="templatePanel" aria-selected="true">Template</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="variablesTab" type="button" role="tab"
+                                aria-controls="variablesPanel" aria-selected="false">Variables</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content flex-grow-1">
+                        <div class="tab-pane show active h-100" id="templatePanel" role="tabpanel"
+                            aria-labelledby="templateTab">
+                            <textarea class="form-control font-monospace h-100" id="txtInput"
+                                placeholder="Write text with tokens such as @[name]"></textarea>
+                        </div>
+                        <div class="tab-pane h-100" id="variablesPanel" role="tabpanel"
+                            aria-labelledby="variablesTab" hidden>
+                            <div class="d-flex flex-column gap-2"></div>
+                        </div>
+                    </div>
+                    <div id="variablesError" class="alert alert-danger mt-2 mb-0" role="alert" hidden></div>
+                </div>
             </section>
             <section class="col-md-3 d-flex flex-column mb-3">
                 <label class="form-label" for="txtOutput">Rendered output</label>

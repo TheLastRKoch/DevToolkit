@@ -59,7 +59,6 @@ function render(session) {
 }
 
 function serializeSession(session) {
-    syncVariables(session);
     const all = Object.entries(session.variables).map(([key, value]) => ({ key, value }));
     return {
         id: session.id,
@@ -127,6 +126,8 @@ app.patch('/api/template/:sessionId', (req, res) => {
     }
     if (typeof req.body.text === 'string') {
         session.text = req.body.text;
+    }
+    if (req.body.syncVariables === true) {
         syncVariables(session);
     }
     if (typeof req.body.title === 'string') {
