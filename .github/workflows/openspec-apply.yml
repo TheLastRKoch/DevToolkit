@@ -121,6 +121,12 @@ jobs:
           if missing:
               raise SystemExit("Missing OpenSpec artifacts: " + ", ".join(missing))
           subprocess.run(["openspec", "validate", change, "--json"], check=True)
+          spec_files = list((directory / "specs").glob("**/*.md"))
+          if not spec_files or all(not path.read_text(encoding="utf-8").strip() for path in spec_files):
+              raise SystemExit(
+                  f"OpenSpec change '{change}' has no substantive specification content "
+                  f"in {directory / 'specs'}; add at least one non-empty spec file before invoking the model"
+              )
           source_component = re.sub(r"[^A-Za-z0-9._-]+", "-", source_ref).strip("-")
           branch = f"openspec/{change.replace('/', '-')}-{source_component}-{os.environ['GITHUB_RUN_ID']}"
           if subprocess.run(
