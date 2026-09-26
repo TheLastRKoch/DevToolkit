@@ -53,13 +53,14 @@
                         </div>
                         <div class="tab-pane h-100" id="variablesPanel" role="tabpanel"
                             aria-labelledby="variablesTab" hidden>
-                            <div class="d-flex flex-column gap-2"></div>
+                            <textarea class="form-control font-monospace h-100" id="txtVariables"
+                                placeholder="@[variable-name]=variable content"></textarea>
                         </div>
                     </div>
                     <div id="variablesError" class="alert alert-danger mt-2 mb-0" role="alert" hidden></div>
                 </div>
             </section>
-            <section class="col-md-3 d-flex flex-column mb-3">
+            <section class="col-md-6 d-flex flex-column mb-3">
                 <label class="form-label" for="txtOutput">Output</label>
                 <textarea class="form-control font-monospace flex-grow-1" id="txtOutput" readonly></textarea>
             </section>

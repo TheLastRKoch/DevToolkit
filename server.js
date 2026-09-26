@@ -118,6 +118,22 @@ app.get('/api/template/:sessionId', (req, res) => {
     return res.json(serializeSession(session));
 });
 
+function applyVariables(session, variables) {
+    if (Array.isArray(variables)) {
+        for (const item of variables) {
+            if (item && typeof item === 'object' && typeof item.key === 'string' && /^[a-zA-Z0-9_-]+$/.test(item.key) && typeof item.value === 'string') {
+                session.variables[item.key] = item.value;
+            }
+        }
+    } else if (typeof variables === 'object' && variables !== null) {
+        for (const [key, value] of Object.entries(variables)) {
+            if (/^[a-zA-Z0-9_-]+$/.test(key) && typeof value === 'string') {
+                session.variables[key] = value;
+            }
+        }
+    }
+}
+
 app.patch('/api/template/:sessionId', (req, res) => {
     const id = parseSessionId(req.params.sessionId);
     const session = id === null ? null : getSession(id);
@@ -130,9 +146,23 @@ app.patch('/api/template/:sessionId', (req, res) => {
     if (req.body.syncVariables === true) {
         syncVariables(session);
     }
+    if (req.body.variables !== undefined) {
+        applyVariables(session, req.body.variables);
+    }
     if (typeof req.body.title === 'string') {
         session.title = req.body.title;
     }
+    return res.json(serializeSession(session));
+});
+
+app.put('/api/template/:sessionId/variables', (req, res) => {
+    const id = parseSessionId(req.params.sessionId);
+    const session = id === null ? null : getSession(id);
+    if (!session) {
+        return res.status(400).json({ error: 'Invalid template session id' });
+    }
+    const vars = req.body.variables !== undefined ? req.body.variables : req.body;
+    applyVariables(session, vars);
     return res.json(serializeSession(session));
 });
 

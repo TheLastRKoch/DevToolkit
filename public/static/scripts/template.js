@@ -8,12 +8,15 @@
     const output = document.getElementById('txtOutput');
     const title = document.getElementById('titleInput');
     const variablesPanel = document.getElementById('variablesPanel');
+    const txtVariables = document.getElementById('txtVariables');
     const variablesError = document.getElementById('variablesError');
     const templateTab = document.getElementById('templateTab');
     const variablesTab = document.getElementById('variablesTab');
     const templatePanel = document.getElementById('templatePanel');
+    const VARIABLE_LINE_PATTERN = /^@\[([a-zA-Z0-9_-]+)\]=(.*)$/;
     let dirty = false;
     let state;
+    let syncPromise = Promise.resolve();
 
     async function request(url, options) {
         const response = await fetch(url, {
@@ -40,37 +43,41 @@
         variablesError.hidden = true;
     }
 
+    function serializeVariables(variables) {
+        if (!variables) {
+            return '';
+        }
+        const list = Array.isArray(variables)
+            ? variables
+            : Object.entries(variables).map(([key, value]) => ({ key, value }));
+        return list.map((v) => `@[${v.key}]=${v.value ?? ''}`).join('\n');
+    }
+
+    function parseVariables(text) {
+        const variables = Object.create(null);
+        if (!text) {
+            return variables;
+        }
+        const lines = text.split(/\r?\n/);
+        for (const line of lines) {
+            const match = line.match(VARIABLE_LINE_PATTERN);
+            if (match) {
+                variables[match[1]] = match[2];
+            }
+        }
+        return variables;
+    }
+
     function renderVariables() {
-        const fields = variablesPanel.firstElementChild;
-        fields.replaceChildren();
-        state.variables.forEach((variable) => {
-            const wrapper = document.createElement('div');
-            const label = document.createElement('label');
-            label.className = 'form-label small mb-1';
-            label.textContent = `@[${variable.key}]`;
-            label.htmlFor = `variable-${variable.key}`;
-            const field = document.createElement('input');
-            field.className = 'form-control form-control-sm';
-            field.id = `variable-${variable.key}`;
-            field.type = 'text';
-            field.value = variable.value;
-            field.addEventListener('input', async () => {
-                markDirty();
-                state = await request(`/api/template/${sessionId}/variables/${encodeURIComponent(variable.key)}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ value: field.value }),
-                });
-                render();
-            });
-            wrapper.append(label, field);
-            fields.append(wrapper);
-        });
+        if (!txtVariables) {
+            return;
+        }
+        txtVariables.value = serializeVariables(state?.variables);
     }
 
     function render() {
         input.value = state.text;
         title.value = state.title;
-        output.value = state.rendered;
         document.title = state.title || 'Devtoolkit';
         renderVariables();
     }
@@ -85,34 +92,69 @@
         variablesPanel.hidden = !showVariables;
     }
 
-    input.addEventListener('input', async () => {
+    input.addEventListener('input', () => {
         markDirty();
-        state = await request(`/api/template/${sessionId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ text: input.value }),
-        });
-        render();
+    });
+
+    input.addEventListener('blur', async () => {
+        markDirty();
+        clearVariablesError();
+        try {
+            syncPromise = request(`/api/template/${sessionId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ text: input.value, syncVariables: true }),
+            });
+            state = await syncPromise;
+            renderVariables();
+        } catch (error) {
+            showVariablesError(error);
+        }
+    });
+
+    txtVariables.addEventListener('input', () => {
+        markDirty();
+    });
+
+    txtVariables.addEventListener('blur', async () => {
+        markDirty();
+        clearVariablesError();
+        const parsed = parseVariables(txtVariables.value);
+        try {
+            syncPromise = request(`/api/template/${sessionId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ variables: parsed }),
+            });
+            state = await syncPromise;
+            renderVariables();
+        } catch (error) {
+            showVariablesError(error);
+        }
+    });
+
+    output.addEventListener('focus', async () => {
+        try {
+            await syncPromise;
+            state = await request(`/api/template/${sessionId}`);
+            output.value = state.rendered;
+        } catch (error) {
+            if (state && typeof state.rendered === 'string') {
+                output.value = state.rendered;
+            } else {
+                output.value = `Unable to render template: ${error.message}`;
+            }
+        }
     });
 
     templateTab.addEventListener('click', () => {
         selectTab('template');
     });
 
-    variablesTab.addEventListener('click', async () => {
+    variablesTab.addEventListener('click', () => {
         if (variablesTab.classList.contains('active')) {
             return;
         }
         clearVariablesError();
-        try {
-            state = await request(`/api/template/${sessionId}`, {
-                method: 'PATCH',
-                body: JSON.stringify({ syncVariables: true }),
-            });
-            render();
-            selectTab('variables');
-        } catch (error) {
-            showVariablesError(error);
-        }
+        selectTab('variables');
     });
 
     title.addEventListener('input', async () => {
@@ -126,13 +168,16 @@
 
     document.getElementById('btnClearVariables').addEventListener('click', async () => {
         markDirty();
+        await syncPromise;
         state = await request(`/api/template/${sessionId}/clear-variables`, { method: 'POST' });
         render();
     });
 
     document.getElementById('btnClearAll').addEventListener('click', async () => {
         markDirty();
+        await syncPromise;
         state = await request(`/api/template/${sessionId}/clear-all`, { method: 'POST' });
+        output.value = '';
         render();
     });
 
