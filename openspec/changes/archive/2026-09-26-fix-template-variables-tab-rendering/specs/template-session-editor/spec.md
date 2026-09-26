@@ -1,25 +1,6 @@
-# template-session-editor Specification
+# Spec Delta
 
-## Purpose
-
-Provides a focused template-session editor where session controls and editing
-surfaces are grouped together, while variable creation follows the user's
-explicit transition into variable editing.
-
-## Requirements
-
-### Requirement: Session controls are grouped outside the navbar
-
-The template session page SHALL render the title field, New session button,
-Clear variables button, and Clear all button together in the session controls
-area below the navbar, and SHALL NOT render the title field or New session
-button in the navbar.
-
-#### Scenario: User sees session controls
-
-- **WHEN** the user opens a template session
-- **THEN** the title field, New session, Clear variables, and Clear all controls
-  are visible in one controls area outside the navbar
+## MODIFIED Requirements
 
 ### Requirement: Template and variables use tabs
 

@@ -88,6 +88,10 @@
         variablesTab.classList.toggle('active', showVariables);
         templateTab.setAttribute('aria-selected', String(!showVariables));
         variablesTab.setAttribute('aria-selected', String(showVariables));
+        templatePanel.classList.toggle('active', !showVariables);
+        templatePanel.classList.toggle('show', !showVariables);
+        variablesPanel.classList.toggle('active', showVariables);
+        variablesPanel.classList.toggle('show', showVariables);
         templatePanel.hidden = showVariables;
         variablesPanel.hidden = !showVariables;
     }
@@ -149,11 +153,17 @@
         selectTab('template');
     });
 
-    variablesTab.addEventListener('click', () => {
+    variablesTab.addEventListener('click', async () => {
         if (variablesTab.classList.contains('active')) {
             return;
         }
         clearVariablesError();
+        try {
+            await syncPromise;
+            renderVariables();
+        } catch (error) {
+            showVariablesError(error);
+        }
         selectTab('variables');
     });
 
