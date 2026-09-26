@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -61,6 +62,16 @@ def load_tasks(tasks_path: Path) -> list[dict[str, str | bool]]:
     return tasks
 
 
+def _validate_specs_content(change_dir: Path) -> None:
+    """Fail early if the change's specs/ directory has no substantive content."""
+    spec_files = sorted((change_dir / "specs").glob("**/*.md"))
+    if not spec_files or all(not path.read_text(encoding="utf-8").strip() for path in spec_files):
+        fail(
+            f"OpenSpec change '{change_dir.name}' has no substantive specification content "
+            f"in {change_dir / 'specs'}; add at least one non-empty spec file before invoking the model"
+        )
+
+
 def validate_change(change: str) -> tuple[Path, list[dict[str, str | bool]]]:
     if not CHANGE_RE.fullmatch(change) or change.startswith(("/", ".")) or ".." in Path(change).parts:
         fail("Invalid change name; use an OpenSpec change directory name")
@@ -82,6 +93,7 @@ def validate_change(change: str) -> tuple[Path, list[dict[str, str | bool]]]:
         fail(f"OpenSpec change is missing required artifacts: {', '.join(missing)}")
 
     run(["openspec", "validate", change, "--json"])
+    _validate_specs_content(change_dir)
     return change_dir, load_tasks(change_dir / "tasks.md")
 
 
@@ -113,6 +125,31 @@ def read_context(change_dir: Path, spec_files: list[Path]) -> str:
     return "".join(sections)
 
 
+def _call_model(url: str, payload: bytes, headers: dict[str, str]) -> str:
+    """Send one HTTP request to the model and return the raw content string.
+
+    Raises SystemExit (via fail()) on network/HTTP errors or a malformed response.
+    """
+    request = urllib.request.Request(url, data=payload, method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=900) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as error:
+        fail(f"Model request failed: {error}")
+    try:
+        return result["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        fail("Model response did not contain a chat completion")
+
+
+def _extract_diff(content: str) -> str | None:
+    """Return the stripped unified diff string, or None if no diff block is found."""
+    match = re.search(r"```diff\s*(.*?)```", content, re.DOTALL | re.IGNORECASE)
+    if not match:
+        return None
+    return match.group(1).strip() + "\n"
+
+
 def request_patch(endpoint: str, provider: str, model: str, api_key: str, prompt: str) -> str:
     url = endpoint.rstrip("/") + "/chat/completions"
     payload = json.dumps(
@@ -134,29 +171,27 @@ def request_patch(endpoint: str, provider: str, model: str, api_key: str, prompt
             ],
         }
     ).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=payload,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": f"openspec-apply/{provider}",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=900) as response:
-            result = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as error:
-        fail(f"Model request failed for provider {provider}: {error}")
-    try:
-        content = result["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
-        fail("Model response did not contain a chat completion")
-    match = re.search(r"```diff\s*(.*?)```", content, re.DOTALL | re.IGNORECASE)
-    if not match:
-        fail("Model response did not contain a unified diff")
-    return match.group(1).strip() + "\n"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": f"openspec-apply/{provider}",
+    }
+
+    content = _call_model(url, payload, headers)
+    diff = _extract_diff(content)
+    if diff is not None:
+        return diff
+
+    print(f"::debug::Raw model response (attempt 1):\n{content}", file=sys.stderr)
+    time.sleep(5)
+
+    content = _call_model(url, payload, headers)
+    diff = _extract_diff(content)
+    if diff is not None:
+        return diff
+
+    print(f"::debug::Raw model response (attempt 2):\n{content}", file=sys.stderr)
+    fail("Model response did not contain a unified diff")
 
 
 def main() -> None:
