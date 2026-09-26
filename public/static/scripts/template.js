@@ -1,81 +1,213 @@
-//Init tagList for all the session
-tagList = [];
-tagListReassembled = [];
+(function () {
+    const sessionId = window.location.pathname.match(/^\/template\/([1-9][0-9]*)$/)?.[1];
+    if (!sessionId) {
+        return;
+    }
 
-function clearAll(){
-    inputValue = ""
-    document.getElementById('txtInput').value = ""
-    document.getElementById('txtQuery').value = ""
-    quill.setText("")
-    tagList = []
-    tagListReassembled = []
-}
+    const input = document.getElementById('txtInput');
+    const output = document.getElementById('txtOutput');
+    const title = document.getElementById('titleInput');
+    const variablesPanel = document.getElementById('variablesPanel');
+    const txtVariables = document.getElementById('txtVariables');
+    const variablesError = document.getElementById('variablesError');
+    const templateTab = document.getElementById('templateTab');
+    const variablesTab = document.getElementById('variablesTab');
+    const templatePanel = document.getElementById('templatePanel');
+    const VARIABLE_LINE_PATTERN = /^@\[([a-zA-Z0-9_-]+)\]=(.*)$/;
+    let dirty = false;
+    let state;
+    let syncPromise = Promise.resolve();
 
-function getTags(inputValue) {
-    regex = /(\@\[.+?\])/g
-
-
-    while ((match = regex.exec(inputValue)) !== null) {
-        tag = { key: match[1], value: "" }
-        if (!tagList.some(item => JSON.stringify(item) === JSON.stringify(tag))){
-            tagList.push(tag);
+    async function request(url, options) {
+        const response = await fetch(url, {
+            headers: { 'Content-Type': 'application/json' },
+            ...options,
+        });
+        if (!response.ok) {
+            throw new Error(await response.text());
         }
+        return response.json();
     }
-    // TODO: add validation currentStatus = "Error trying to get the tags from the input"
-}
 
-
-function printTags() {
-    
-    queryText = ""
-    for (const tag of tagList) {
-        queryText += tag.key + "=" + tag.value + "\n"
+    function markDirty() {
+        dirty = true;
     }
-    return queryText
-}
 
-
-function reassemblyTags(tagsText) {
-    regex = /(.+?)=(.+?)$/gm
-
-
-    while ((match = regex.exec(tagsText)) !== null) {
-        tagListReassembled.push({ key: match[1], value: match[2] });
+    function showVariablesError(error) {
+        variablesError.textContent = `Unable to synchronize variables: ${error.message}`;
+        variablesError.hidden = false;
     }
-    // TODO: add validation currentStatus = "Error trying to get the tags from the input"
-    return tagListReassembled
-}
 
-
-function replaceTags(inputValue, tagList) {
-    for (const tag of tagList) {
-        inputValue = inputValue.replaceAll(tag.key, tag.value)
+    function clearVariablesError() {
+        variablesError.textContent = '';
+        variablesError.hidden = true;
     }
-    return inputValue
-}
 
-function renderQuery() {
-    outputValue = replaceTags(inputValue, tagList)
-    document.getElementById('txtOutput').value = outputValue
-}
+    function serializeVariables(variables) {
+        if (!variables) {
+            return '';
+        }
+        const list = Array.isArray(variables)
+            ? variables
+            : Object.entries(variables).map(([key, value]) => ({ key, value }));
+        return list.map((v) => `@[${v.key}]=${v.value ?? ''}`).join('\n');
+    }
 
-document.getElementById('txtInput').addEventListener('focusout', function () {
-    inputValue = document.getElementById('txtInput').value
-    getTags(inputValue)
-    tagsText = printTags()
-    document.getElementById('txtQuery').value = tagsText
-});
+    function parseVariables(text) {
+        const variables = Object.create(null);
+        if (!text) {
+            return variables;
+        }
+        const lines = text.split(/\r?\n/);
+        for (const line of lines) {
+            const match = line.match(VARIABLE_LINE_PATTERN);
+            if (match) {
+                variables[match[1]] = match[2];
+            }
+        }
+        return variables;
+    }
 
+    function renderVariables() {
+        if (!txtVariables) {
+            return;
+        }
+        txtVariables.value = serializeVariables(state?.variables);
+    }
 
-document.getElementById('txtQuery').addEventListener('focusout', function () {
-    queryText = document.getElementById('txtQuery').value
-    tagListReassembled = reassemblyTags(queryText)
-    outputText = replaceTags(inputValue, tagListReassembled)
-    quill.setText(outputText)
-});
+    function render() {
+        input.value = state.text;
+        title.value = state.title;
+        document.title = state.title || 'Devtoolkit';
+        renderVariables();
+    }
 
-document.getElementById('btnClearAll').addEventListener('click', function(){
-    clearAll()
-})
+    function selectTab(tab) {
+        const showVariables = tab === 'variables';
+        templateTab.classList.toggle('active', !showVariables);
+        variablesTab.classList.toggle('active', showVariables);
+        templateTab.setAttribute('aria-selected', String(!showVariables));
+        variablesTab.setAttribute('aria-selected', String(showVariables));
+        templatePanel.classList.toggle('active', !showVariables);
+        templatePanel.classList.toggle('show', !showVariables);
+        variablesPanel.classList.toggle('active', showVariables);
+        variablesPanel.classList.toggle('show', showVariables);
+        templatePanel.hidden = showVariables;
+        variablesPanel.hidden = !showVariables;
+    }
 
-document.getElementById('currentYear').textContent = new Date().getFullYear();
+    input.addEventListener('input', () => {
+        markDirty();
+    });
+
+    input.addEventListener('blur', async () => {
+        markDirty();
+        clearVariablesError();
+        try {
+            syncPromise = request(`/api/template/${sessionId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ text: input.value, syncVariables: true }),
+            });
+            state = await syncPromise;
+            renderVariables();
+        } catch (error) {
+            showVariablesError(error);
+        }
+    });
+
+    txtVariables.addEventListener('input', () => {
+        markDirty();
+    });
+
+    txtVariables.addEventListener('blur', async () => {
+        markDirty();
+        clearVariablesError();
+        const parsed = parseVariables(txtVariables.value);
+        try {
+            syncPromise = request(`/api/template/${sessionId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ variables: parsed }),
+            });
+            state = await syncPromise;
+            renderVariables();
+        } catch (error) {
+            showVariablesError(error);
+        }
+    });
+
+    output.addEventListener('focus', async () => {
+        try {
+            await syncPromise;
+            state = await request(`/api/template/${sessionId}`);
+            output.value = state.rendered;
+        } catch (error) {
+            if (state && typeof state.rendered === 'string') {
+                output.value = state.rendered;
+            } else {
+                output.value = `Unable to render template: ${error.message}`;
+            }
+        }
+    });
+
+    templateTab.addEventListener('click', () => {
+        selectTab('template');
+    });
+
+    variablesTab.addEventListener('click', async () => {
+        if (variablesTab.classList.contains('active')) {
+            return;
+        }
+        clearVariablesError();
+        try {
+            await syncPromise;
+            renderVariables();
+        } catch (error) {
+            showVariablesError(error);
+        }
+        selectTab('variables');
+    });
+
+    title.addEventListener('input', async () => {
+        markDirty();
+        state = await request(`/api/template/${sessionId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ title: title.value }),
+        });
+        document.title = title.value || 'Devtoolkit';
+    });
+
+    document.getElementById('btnClearVariables').addEventListener('click', async () => {
+        markDirty();
+        await syncPromise;
+        state = await request(`/api/template/${sessionId}/clear-variables`, { method: 'POST' });
+        render();
+    });
+
+    document.getElementById('btnClearAll').addEventListener('click', async () => {
+        markDirty();
+        await syncPromise;
+        state = await request(`/api/template/${sessionId}/clear-all`, { method: 'POST' });
+        output.value = '';
+        render();
+    });
+
+    document.getElementById('btnNewSession').addEventListener('click', async () => {
+        const newSession = await request('/api/template/sessions', { method: 'POST' });
+        window.open(newSession.path, '_blank', 'noopener');
+    });
+
+    window.addEventListener('beforeunload', (event) => {
+        if (dirty) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    });
+
+    document.getElementById('currentYear').textContent = new Date().getFullYear();
+    request(`/api/template/${sessionId}`).then((loadedState) => {
+        state = loadedState;
+        render();
+    }).catch((error) => {
+        output.value = `Unable to load session: ${error.message}`;
+    });
+}());
