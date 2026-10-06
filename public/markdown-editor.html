@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Editor – Devtoolkit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="static/img/favicon.ico">
+    <style>
+        html, body {
+            height: 100%;
+        }
+
+        #editorWorkspace {
+            min-height: 0;
+            height: calc(100vh - 160px);
+        }
+
+        #rawPane,
+        #previewPane {
+            min-width: 0;
+            min-height: 0;
+        }
+
+        #mdInput {
+            resize: none;
+            tab-size: 2;
+            font-family: monospace;
+        }
+
+        #mdPreview {
+            overflow-y: auto;
+            word-wrap: break-word;
+        }
+
+        /* Basic markdown preview typography */
+        #mdPreview h1, #mdPreview h2, #mdPreview h3,
+        #mdPreview h4, #mdPreview h5, #mdPreview h6 {
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        #mdPreview pre {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 0.75rem 1rem;
+            overflow-x: auto;
+        }
+
+        #mdPreview code {
+            background: #f8f9fa;
+            border-radius: 3px;
+            padding: 0.1em 0.3em;
+            font-size: 0.9em;
+        }
+
+        #mdPreview pre code {
+            background: transparent;
+            padding: 0;
+        }
+
+        #mdPreview blockquote {
+            border-left: 4px solid #dee2e6;
+            padding-left: 1rem;
+            color: #6c757d;
+        }
+
+        #mdPreview table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        #mdPreview th, #mdPreview td {
+            border: 1px solid #dee2e6;
+            padding: 0.5rem 0.75rem;
+        }
+
+        #mdPreview th {
+            background: #f8f9fa;
+        }
+
+        /* Vertical rule between panes */
+        .pane-divider {
+            width: 1px;
+            background-color: #dee2e6;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Devtoolkit</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid flex-grow-1 d-flex flex-column">
+        <!-- Breadcrumb row -->
+        <div class="row mt-3">
+            <div class="col">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/">Home</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">Markdown Editor</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Editor workspace -->
+        <div id="editorWorkspace" class="d-flex flex-row flex-grow-1 border rounded shadow-sm overflow-hidden bg-white mb-3">
+
+            <!-- Left Pane: Raw Markdown Input -->
+            <section id="rawPane" class="d-flex flex-column flex-grow-1" aria-label="Raw Markdown Editor">
+                <!-- Top toolbar -->
+                <div class="d-flex justify-content-end align-items-center py-1 px-3 bg-light border-bottom" style="min-height: 34px;">
+                    <button id="btnExpandEditor" type="button"
+                        class="btn btn-sm btn-outline-secondary font-monospace fw-bold py-0 px-2"
+                        title="Expand editor full screen"
+                        aria-label="Expand editor full screen">[]</button>
+                </div>
+
+                <!-- Textarea -->
+                <textarea
+                    id="mdInput"
+                    class="form-control border-0 rounded-0 flex-grow-1 p-3 overflow-auto"
+                    placeholder="Type or paste markdown here..."
+                    spellcheck="false"
+                    aria-label="Markdown text editor"
+                ></textarea>
+
+                <!-- Bottom character count status bar -->
+                <div id="editorStatusBar"
+                    class="d-flex justify-content-between align-items-center py-1 px-3 bg-light border-top text-muted small"
+                    style="min-height: 28px;">
+                    <span>Characters: <span id="charCount">0</span></span>
+                </div>
+            </section>
+
+            <!-- Pane divider (visible in split view) -->
+            <div id="paneDivider" class="pane-divider d-none d-md-block" aria-hidden="true"></div>
+            <hr id="paneDividerMobile" class="d-md-none m-0 border-secondary" aria-hidden="true">
+
+            <!-- Right Pane: Rendered Markdown Preview -->
+            <section id="previewPane" class="d-flex flex-column flex-grow-1" aria-label="Rendered Markdown Preview">
+                <!-- Top toolbar -->
+                <div class="d-flex justify-content-end align-items-center py-1 px-3 bg-light border-bottom" style="min-height: 34px;">
+                    <button id="btnExpandPreview" type="button"
+                        class="btn btn-sm btn-outline-secondary font-monospace fw-bold py-0 px-2"
+                        title="Expand preview full screen"
+                        aria-label="Expand preview full screen">[]</button>
+                </div>
+
+                <!-- Preview content -->
+                <div
+                    id="mdPreview"
+                    class="flex-grow-1 p-3 px-md-4 overflow-auto bg-white text-dark"
+                    aria-live="polite"
+                ></div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light">
+        <div class="text-center py-2">&copy; <span id="currentYear"></span> Devtoolkit. All rights reserved.</div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="static/scripts/markdown-editor.js"></script>
+</body>
+
+</html>
