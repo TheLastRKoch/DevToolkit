@@ -81,26 +81,26 @@
     function applyPaneState() {
         if (focusedPane === 'editor') {
             // Raw pane takes full width; hide preview
-            rawPane.style.display = 'flex';
-            previewPane.style.display = 'none';
-            paneDivider.style.display = 'none';
-            paneDividerMobile.style.display = 'none';
+            rawPane.classList.remove('d-none');
+            previewPane.classList.add('d-none');
+            paneDivider.classList.add('d-none', 'd-md-none');
+            paneDividerMobile.classList.add('d-none');
             btnExpandEditor.title = 'Restore split view';
             btnExpandEditor.setAttribute('aria-label', 'Restore split view');
         } else if (focusedPane === 'preview') {
             // Preview pane takes full width; hide raw editor
-            rawPane.style.display = 'none';
-            previewPane.style.display = 'flex';
-            paneDivider.style.display = 'none';
-            paneDividerMobile.style.display = 'none';
+            rawPane.classList.add('d-none');
+            previewPane.classList.remove('d-none');
+            paneDivider.classList.add('d-none', 'd-md-none');
+            paneDividerMobile.classList.add('d-none');
             btnExpandPreview.title = 'Restore split view';
             btnExpandPreview.setAttribute('aria-label', 'Restore split view');
         } else {
             // Split view
-            rawPane.style.display = 'flex';
-            previewPane.style.display = 'flex';
-            paneDivider.style.display = '';
-            paneDividerMobile.style.display = '';
+            rawPane.classList.remove('d-none');
+            previewPane.classList.remove('d-none');
+            paneDivider.classList.remove('d-none', 'd-md-none');
+            paneDividerMobile.classList.remove('d-none');
             btnExpandEditor.title = 'Expand editor full screen';
             btnExpandEditor.setAttribute('aria-label', 'Expand editor full screen');
             btnExpandPreview.title = 'Expand preview full screen';

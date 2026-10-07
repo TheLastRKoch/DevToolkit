@@ -17,10 +17,19 @@
             height: calc(100vh - 160px);
         }
 
+        @media (min-width: 768px) {
+            #editorWorkspace {
+                margin-left: 200px;
+                margin-right: 200px;
+            }
+        }
+
         #rawPane,
         #previewPane {
             min-width: 0;
             min-height: 0;
+            flex: 1 1 50%;
+            width: 50%;
         }
 
         #mdInput {
@@ -169,6 +178,14 @@
                     class="flex-grow-1 p-3 px-md-4 overflow-auto bg-white text-dark"
                     aria-live="polite"
                 ></div>
+
+                <!-- Bottom spacer matching editor status bar height -->
+                <div id="previewStatusBar"
+                    class="d-flex justify-content-end align-items-center py-1 px-3 bg-light border-top text-muted small"
+                    style="min-height: 28px;"
+                    aria-hidden="true">
+                    <span>&nbsp;</span>
+                </div>
             </section>
         </div>
     </div>
