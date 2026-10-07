@@ -104,6 +104,10 @@ app.get('/editor', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'editor.html'));
 });
 
+app.get('/markdown-editor', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'markdown-editor.html'));
+});
+
 app.post('/api/template/sessions', (req, res) => {
     const session = createSession();
     res.status(201).json({ id: session.id, path: `/template/${session.id}` });
