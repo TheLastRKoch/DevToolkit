@@ -139,14 +139,20 @@ test('Interactive simulation of pane state toggling', () => {
     assert.equal(paneDivider.classList.contains('d-none'), false, 'paneDivider must not have d-none after restore');
 });
 
-test('Layout styling: editorWorkspace has responsive 200px margins and panes share 50% split width', () => {
+test('Layout styling: responsive orientation, 200px margins, and 50/50 split sizing', () => {
     const html = fs.readFileSync(htmlPath, 'utf8');
+
+    // Verify #editorWorkspace has flex-column on mobile and flex-md-row on desktop
+    assert.match(html, /id="editorWorkspace"[^>]*class="[^"]*flex-column\s+flex-md-row/, 'editorWorkspace must have flex-column flex-md-row');
 
     // Verify 200px margins on #editorWorkspace inside @media (min-width: 768px)
     assert.match(html, /@media\s*\(\s*min-width:\s*768px\s*\)\s*\{[\s\S]*?#editorWorkspace\s*\{[\s\S]*?margin-left:\s*200px[\s\S]*?margin-right:\s*200px/, 'editorWorkspace must have 200px left and right margins inside @media (min-width: 768px)');
 
-    // Verify 50% width and flex on panes
-    assert.match(html, /#rawPane,\s*#previewPane\s*\{[^}]*width:\s*50%/, 'panes must have width: 50%');
-    assert.match(html, /#rawPane,\s*#previewPane\s*\{[^}]*flex:\s*1\s+1\s+50%/, 'panes must have flex: 1 1 50%');
+    // Verify mobile default 50% height and 100% width on panes
+    assert.match(html, /#rawPane,\s*#previewPane\s*\{[\s\S]*?width:\s*100%;[\s\S]*?height:\s*50%;/, 'panes must have width: 100% and height: 50% by default on mobile');
+    assert.match(html, /#rawPane,\s*#previewPane\s*\{[\s\S]*?flex:\s*1\s+1\s+50%/, 'panes must have flex: 1 1 50%');
+
+    // Verify desktop/tablet 50% width and 100% height inside @media (min-width: 768px)
+    assert.match(html, /@media\s*\(\s*min-width:\s*768px\s*\)\s*\{[\s\S]*?#rawPane,\s*#previewPane\s*\{[\s\S]*?width:\s*50%;[\s\S]*?height:\s*100%;/, 'panes must have width: 50% and height: 100% inside @media (min-width: 768px)');
 });
 

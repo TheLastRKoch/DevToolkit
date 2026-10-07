@@ -29,7 +29,16 @@
             min-width: 0;
             min-height: 0;
             flex: 1 1 50%;
-            width: 50%;
+            width: 100%;
+            height: 50%;
+        }
+
+        @media (min-width: 768px) {
+            #rawPane,
+            #previewPane {
+                width: 50%;
+                height: 100%;
+            }
         }
 
         #mdInput {
@@ -129,7 +138,7 @@
         </div>
 
         <!-- Editor workspace -->
-        <div id="editorWorkspace" class="d-flex flex-row flex-grow-1 border rounded shadow-sm overflow-hidden bg-white mb-3">
+        <div id="editorWorkspace" class="d-flex flex-column flex-md-row flex-grow-1 border rounded shadow-sm overflow-hidden bg-white mb-3">
 
             <!-- Left Pane: Raw Markdown Input -->
             <section id="rawPane" class="d-flex flex-column flex-grow-1" aria-label="Raw Markdown Editor">

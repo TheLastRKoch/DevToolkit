@@ -19,8 +19,14 @@
 ## 4. Half-screen split and responsive 200px horizontal margins
 
 - [x] 4.1 In `public/markdown-editor.html`, update `#editorWorkspace` styles so that 200px left and right margins apply only in tablet and desktop mode via `@media (min-width: 768px)`, leaving mobile mode (< 768px) without the 200px margins.
-- [x] 4.2 In `public/markdown-editor.html`, configure `#rawPane` and `#previewPane` with `flex: 1 1 50%` / `width: 50%` so they share equal halves of the workspace in split view. Verify both panes occupy identical 50% widths.
+- [x] 4.2 In `public/markdown-editor.html`, configure `#rawPane` and `#previewPane` with `flex: 1 1 50%` so they share equal halves of the workspace in split view.
 - [x] 4.3 Update `test/markdown-editor.test.js` to assert the responsive 200px margins at `@media (min-width: 768px)` and verify all automated tests pass.
+
+## 5. Mobile stacked 50/50 split (top/bottom)
+
+- [x] 5.1 In `public/markdown-editor.html`, set `#editorWorkspace` class to `flex-column flex-md-row` and configure `#rawPane` and `#previewPane` CSS with `height: 50%; width: 100%` on mobile, and `height: 100%; width: 50%` on `@media (min-width: 768px)`.
+- [x] 5.2 Verify that `<hr id="paneDividerMobile">` correctly separates the top and bottom panes on mobile split view and hides when either pane is expanded.
+- [x] 5.3 Update `test/markdown-editor.test.js` to test `#editorWorkspace` has `flex-column flex-md-row` and responsive 50% height/width pane rules, and verify all tests pass.
 
 ## Workflow follow-up
 
