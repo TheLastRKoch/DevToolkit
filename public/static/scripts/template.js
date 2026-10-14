@@ -6,80 +6,113 @@
 
     const input = document.getElementById('txtInput');
     const output = document.getElementById('txtOutput');
-    const title = document.getElementById('titleInput');
     const variablesPanel = document.getElementById('variablesPanel');
     const txtVariables = document.getElementById('txtVariables');
-    const variablesError = document.getElementById('variablesError');
     const templateTab = document.getElementById('templateTab');
     const variablesTab = document.getElementById('variablesTab');
     const templatePanel = document.getElementById('templatePanel');
+    const currentYear = document.getElementById('currentYear');
     const VARIABLE_LINE_PATTERN = /^@\[([a-zA-Z0-9_-]+)\]=(.*)$/;
+    const VARIABLE_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+    const TOKEN_PATTERN = /@\[([a-zA-Z0-9_-]+)\]/g;
+
+    let header = null;
     let dirty = false;
-    let state;
-    let syncPromise = Promise.resolve();
 
-    async function request(url, options) {
-        const response = await fetch(url, {
-            headers: { 'Content-Type': 'application/json' },
-            ...options,
-        });
-        if (!response.ok) {
-            throw new Error(await response.text());
+    const store = DevToolkitSessions.openStore('template', DevToolkitSessions.browserStorage(), {
+        onWriteError: () => {
+            if (header) {
+                header.warn('Changes will not be persisted in this browser.');
+            }
+        },
+    });
+    const session = store.ensure(sessionId, { text: '', variables: {} });
+    let variables = readVariables(session.data.variables);
+
+    function readVariables(source) {
+        const map = Object.create(null);
+        if (source && typeof source === 'object') {
+            for (const [key, value] of Object.entries(source)) {
+                if (VARIABLE_NAME_PATTERN.test(key) && typeof value === 'string') {
+                    Object.defineProperty(map, key, { value, enumerable: true, writable: true, configurable: true });
+                }
+            }
         }
-        return response.json();
+        return map;
     }
 
-    function markDirty() {
-        dirty = true;
-    }
-
-    function showVariablesError(error) {
-        variablesError.textContent = `Unable to synchronize variables: ${error.message}`;
-        variablesError.hidden = false;
-    }
-
-    function clearVariablesError() {
-        variablesError.textContent = '';
-        variablesError.hidden = true;
-    }
-
-    function serializeVariables(variables) {
-        if (!variables) {
-            return '';
+    function snapshotVariables() {
+        const plain = {};
+        for (const [key, value] of Object.entries(variables)) {
+            Object.defineProperty(plain, key, { value, enumerable: true, writable: true, configurable: true });
         }
-        const list = Array.isArray(variables)
-            ? variables
-            : Object.entries(variables).map(([key, value]) => ({ key, value }));
-        return list.map((v) => `@[${v.key}]=${v.value ?? ''}`).join('\n');
+        return plain;
+    }
+
+    function serializeVariables() {
+        return Object.entries(variables).map(([key, value]) => `@[${key}]=${value}`).join('\n');
     }
 
     function parseVariables(text) {
-        const variables = Object.create(null);
+        const parsed = Object.create(null);
         if (!text) {
-            return variables;
+            return parsed;
         }
-        const lines = text.split(/\r?\n/);
-        for (const line of lines) {
+        for (const line of text.split(/\r?\n/)) {
             const match = line.match(VARIABLE_LINE_PATTERN);
             if (match) {
-                variables[match[1]] = match[2];
+                Object.defineProperty(parsed, match[1], {
+                    value: match[2],
+                    enumerable: true,
+                    writable: true,
+                    configurable: true,
+                });
             }
         }
-        return variables;
+        return parsed;
+    }
+
+    function detectTokens(text) {
+        const tokens = [];
+        const seen = new Set();
+        for (const match of text.matchAll(TOKEN_PATTERN)) {
+            if (!seen.has(match[1])) {
+                seen.add(match[1]);
+                tokens.push(match[1]);
+            }
+        }
+        return tokens;
+    }
+
+    function syncTokens() {
+        for (const token of detectTokens(input.value)) {
+            if (!Object.prototype.hasOwnProperty.call(variables, token)) {
+                Object.defineProperty(variables, token, {
+                    value: '',
+                    enumerable: true,
+                    writable: true,
+                    configurable: true,
+                });
+            }
+        }
     }
 
     function renderVariables() {
-        if (!txtVariables) {
-            return;
-        }
-        txtVariables.value = serializeVariables(state?.variables);
+        txtVariables.value = serializeVariables();
     }
 
-    function render() {
-        input.value = state.text;
-        title.value = state.title;
-        document.title = state.title || 'Devtoolkit';
-        renderVariables();
+    function renderOutput() {
+        output.value = input.value.replace(TOKEN_PATTERN, (rawToken, token) => variables[token] || rawToken);
+    }
+
+    function persist(patch) {
+        dirty = true;
+        store.save(sessionId, patch);
+        dirty = !store.isPersisted();
+    }
+
+    function persistTemplate() {
+        persist({ data: { text: input.value, variables: snapshotVariables() } });
     }
 
     function selectTab(tab) {
@@ -96,118 +129,89 @@
         variablesPanel.hidden = !showVariables;
     }
 
-    input.addEventListener('input', () => {
-        markDirty();
+    function newSession() {
+        const id = store.allocateId();
+        window.open(`/template/${id}`, '_blank', 'noopener');
+    }
+
+    function clearVariables() {
+        variables = readVariables({});
+        renderVariables();
+        persistTemplate();
+    }
+
+    function clearAll() {
+        variables = readVariables({});
+        input.value = '';
+        output.value = '';
+        renderVariables();
+        persistTemplate();
+    }
+
+    header = DevToolkitPageHeader.init({
+        mount: document.getElementById('pageHeader'),
+        breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Template' }],
+        pageName: session.name,
+        persisted: store.isPersisted(),
+        onPageNameChange: (name) => persist({ name }),
+        options: [
+            { id: 'new-session', label: 'New session', run: newSession },
+            { id: 'clear-variables', label: 'Clear variables', run: clearVariables },
+            { id: 'clear-all', label: 'Clear all', run: clearAll },
+        ],
     });
 
-    input.addEventListener('blur', async () => {
-        markDirty();
-        clearVariablesError();
-        try {
-            syncPromise = request(`/api/template/${sessionId}`, {
-                method: 'PATCH',
-                body: JSON.stringify({ text: input.value, syncVariables: true }),
-            });
-            state = await syncPromise;
-            renderVariables();
-        } catch (error) {
-            showVariablesError(error);
-        }
+    input.value = session.data.text || '';
+    renderVariables();
+
+    input.addEventListener('input', () => {
+        persistTemplate();
+    });
+
+    input.addEventListener('blur', () => {
+        syncTokens();
+        renderVariables();
+        persistTemplate();
     });
 
     txtVariables.addEventListener('input', () => {
-        markDirty();
+        variables = parseVariables(txtVariables.value);
+        persistTemplate();
     });
 
-    txtVariables.addEventListener('blur', async () => {
-        markDirty();
-        clearVariablesError();
-        const parsed = parseVariables(txtVariables.value);
-        try {
-            syncPromise = request(`/api/template/${sessionId}`, {
-                method: 'PATCH',
-                body: JSON.stringify({ variables: parsed }),
-            });
-            state = await syncPromise;
-            renderVariables();
-        } catch (error) {
-            showVariablesError(error);
-        }
+    txtVariables.addEventListener('blur', () => {
+        variables = parseVariables(txtVariables.value);
+        renderVariables();
+        persistTemplate();
     });
 
-    output.addEventListener('focus', async () => {
-        try {
-            await syncPromise;
-            state = await request(`/api/template/${sessionId}`);
-            output.value = state.rendered;
-        } catch (error) {
-            if (state && typeof state.rendered === 'string') {
-                output.value = state.rendered;
-            } else {
-                output.value = `Unable to render template: ${error.message}`;
-            }
-        }
+    output.addEventListener('focus', () => {
+        renderOutput();
     });
 
     templateTab.addEventListener('click', () => {
         selectTab('template');
     });
 
-    variablesTab.addEventListener('click', async () => {
+    variablesTab.addEventListener('click', () => {
         if (variablesTab.classList.contains('active')) {
             return;
         }
-        clearVariablesError();
-        try {
-            await syncPromise;
-            renderVariables();
-        } catch (error) {
-            showVariablesError(error);
-        }
+        syncTokens();
+        renderVariables();
+        persistTemplate();
         selectTab('variables');
     });
 
-    title.addEventListener('input', async () => {
-        markDirty();
-        state = await request(`/api/template/${sessionId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ title: title.value }),
-        });
-        document.title = title.value || 'Devtoolkit';
-    });
-
-    document.getElementById('btnClearVariables').addEventListener('click', async () => {
-        markDirty();
-        await syncPromise;
-        state = await request(`/api/template/${sessionId}/clear-variables`, { method: 'POST' });
-        render();
-    });
-
-    document.getElementById('btnClearAll').addEventListener('click', async () => {
-        markDirty();
-        await syncPromise;
-        state = await request(`/api/template/${sessionId}/clear-all`, { method: 'POST' });
-        output.value = '';
-        render();
-    });
-
-    document.getElementById('btnNewSession').addEventListener('click', async () => {
-        const newSession = await request('/api/template/sessions', { method: 'POST' });
-        window.open(newSession.path, '_blank', 'noopener');
-    });
-
     window.addEventListener('beforeunload', (event) => {
-        if (dirty) {
-            event.preventDefault();
-            event.returnValue = '';
+        if (!dirty) {
+            return;
         }
+        event.preventDefault();
+        event.returnValue = '';
     });
 
-    document.getElementById('currentYear').textContent = new Date().getFullYear();
-    request(`/api/template/${sessionId}`).then((loadedState) => {
-        state = loadedState;
-        render();
-    }).catch((error) => {
-        output.value = `Unable to load session: ${error.message}`;
-    });
+    if (currentYear) {
+        currentYear.textContent = new Date().getFullYear();
+    }
 }());

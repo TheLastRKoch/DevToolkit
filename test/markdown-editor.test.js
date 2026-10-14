@@ -3,6 +3,10 @@ const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const sessionsModule = require('../public/static/scripts/browser-session.js');
+const pageHeaderModule = require('../public/static/scripts/page-header.js');
+const { createDom, createWindow, runScript, withDocument } = require('./helpers/mock-dom.js');
+
 const htmlPath = path.join(__dirname, '../public/markdown-editor.html');
 const jsPath = path.join(__dirname, '../public/static/scripts/markdown-editor.js');
 
@@ -37,77 +41,42 @@ test('JS pane state toggle: uses d-none class for hiding and restoring panes', (
 });
 
 test('Interactive simulation of pane state toggling', () => {
-    function createMockElement(id, initialClasses = []) {
-        const classes = new Set(initialClasses);
-        const attrs = {};
-        const listeners = {};
-        return {
-            id,
-            classList: {
-                add: (...cls) => cls.forEach(c => classes.add(c)),
-                remove: (...cls) => cls.forEach(c => classes.delete(c)),
-                contains: (c) => classes.has(c),
-            },
-            title: '',
-            setAttribute: (k, v) => { attrs[k] = v; },
-            getAttribute: (k) => attrs[k],
-            addEventListener: (event, handler) => {
-                listeners[event] = listeners[event] || [];
-                listeners[event].push(handler);
-            },
-            click: () => {
-                (listeners['click'] || []).forEach(h => h());
-            },
-            value: '',
-            textContent: '',
-            innerHTML: '',
-            scrollHeight: 100,
-            clientHeight: 50,
-            scrollTop: 0,
-        };
-    }
+    const dom = createDom([
+        'pageHeader',
+        'mdInput',
+        'mdPreview',
+        'charCount',
+        'btnExpandEditor',
+        'btnExpandPreview',
+        'rawPane',
+        'previewPane',
+        'paneDivider',
+        'paneDividerMobile',
+        'currentYear',
+    ]);
+    const rawPane = dom.document.getElementById('rawPane');
+    const previewPane = dom.document.getElementById('previewPane');
+    const paneDivider = dom.document.getElementById('paneDivider');
+    const btnExpandEditor = dom.document.getElementById('btnExpandEditor');
+    const btnExpandPreview = dom.document.getElementById('btnExpandPreview');
 
-    const mdInput = createMockElement('mdInput');
-    const mdPreview = createMockElement('mdPreview');
-    const charCount = createMockElement('charCount');
-    const btnExpandEditor = createMockElement('btnExpandEditor');
-    const btnExpandPreview = createMockElement('btnExpandPreview');
-    const rawPane = createMockElement('rawPane', ['d-flex', 'flex-column', 'flex-grow-1']);
-    const previewPane = createMockElement('previewPane', ['d-flex', 'flex-column', 'flex-grow-1']);
-    const paneDivider = createMockElement('paneDivider', ['pane-divider', 'd-none', 'd-md-block']);
-    const paneDividerMobile = createMockElement('paneDividerMobile', ['d-md-none']);
-    const currentYearEl = createMockElement('currentYear');
+    const window = createWindow('/markdown-editor/1');
+    window.requestAnimationFrame = (cb) => cb();
 
-    const domMap = {
-        mdInput,
-        mdPreview,
-        charCount,
-        btnExpandEditor,
-        btnExpandPreview,
-        rawPane,
-        previewPane,
-        paneDivider,
-        paneDividerMobile,
-        currentYearEl,
-    };
-
-    const mockDocument = {
-        getElementById: (id) => domMap[id] || null,
-    };
-
-    const mockWindow = {
-        requestAnimationFrame: (cb) => cb(),
-    };
-
-    const mockMarked = {
-        parse: (t) => `<p>${t}</p>`,
-    };
-
+    const storage = sessionsModule.memoryStorage();
+    const marked = { parse: (text) => `<p>${text}</p>` };
     const scriptCode = fs.readFileSync(jsPath, 'utf8');
 
     // Run script inside simulated sandbox
-    const runScript = new Function('document', 'window', 'marked', scriptCode);
-    runScript(mockDocument, mockWindow, mockMarked);
+    runScript(scriptCode, {
+        document: dom.document,
+        window,
+        globals: {
+            marked,
+            DevToolkitSessions: Object.assign({}, sessionsModule, { browserStorage: () => storage }),
+            DevToolkitPageHeader: withDocument(pageHeaderModule, dom.document),
+        },
+    });
 
     // Initial state: split view
     assert.equal(previewPane.classList.contains('d-none'), false, 'previewPane should be visible initially');
@@ -115,25 +84,25 @@ test('Interactive simulation of pane state toggling', () => {
     assert.equal(paneDivider.classList.contains('d-none'), false, 'paneDivider should not have d-none added');
 
     // Click [] on editor -> expand editor
-    btnExpandEditor.click();
+    btnExpandEditor.dispatch('click', {});
     assert.equal(previewPane.classList.contains('d-none'), true, 'previewPane must have d-none when editor expanded');
     assert.equal(rawPane.classList.contains('d-none'), false, 'rawPane must not have d-none');
     assert.equal(paneDivider.classList.contains('d-none'), true, 'paneDivider must have d-none');
 
     // Click [] on editor again -> restore split view
-    btnExpandEditor.click();
+    btnExpandEditor.dispatch('click', {});
     assert.equal(previewPane.classList.contains('d-none'), false, 'previewPane must not have d-none after restore');
     assert.equal(rawPane.classList.contains('d-none'), false, 'rawPane must not have d-none after restore');
     assert.equal(paneDivider.classList.contains('d-none'), false, 'paneDivider must not have d-none after restore');
 
     // Click [] on preview -> expand preview
-    btnExpandPreview.click();
+    btnExpandPreview.dispatch('click', {});
     assert.equal(rawPane.classList.contains('d-none'), true, 'rawPane must have d-none when preview expanded');
     assert.equal(previewPane.classList.contains('d-none'), false, 'previewPane must not have d-none');
     assert.equal(paneDivider.classList.contains('d-none'), true, 'paneDivider must have d-none');
 
     // Click [] on preview again -> restore split view
-    btnExpandPreview.click();
+    btnExpandPreview.dispatch('click', {});
     assert.equal(rawPane.classList.contains('d-none'), false, 'rawPane must not have d-none after restore');
     assert.equal(previewPane.classList.contains('d-none'), false, 'previewPane must not have d-none after restore');
     assert.equal(paneDivider.classList.contains('d-none'), false, 'paneDivider must not have d-none after restore');
