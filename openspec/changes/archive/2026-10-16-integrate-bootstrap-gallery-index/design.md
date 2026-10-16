@@ -13,14 +13,15 @@ See `proposal.md — Why` for motivation. Current state and constraints that sha
 ## Goals / Non-Goals
 
 **Goals:**
-- Serve the gallery as `public/index.html` at `/` using DevToolkit's existing navbar markup and Bootstrap CDN.
+- Serve the gallery as `public/index.html` at `/` using DevToolkit's existing navbar markup, DevToolkit's standard footer, and Bootstrap CDN.
 - Preserve the gallery's client-side interactivity using dependency-free vanilla JavaScript loaded as a browser-native ES module.
-- Add a navbar "+" dropdown that exposes the DevToolkit tool links.
+- Add a "New" dropdown button to the right of the search bar that exposes the DevToolkit tool links and redirects to each tool page on click.
+- Position the card remove button ("X") at the top right of each piece card, with heart icons removed.
 
 **Non-Goals:**
 - No Vite, bundler, or build step; no framework (React or otherwise).
 - No changes to the tool pages, their routes, or `server.js`.
-- No server-side or persisted favorites state — favorites are session-only in memory, matching the source.
+- No saved/favorites toggle or heart icons — removed from navbar and cards.
 - No pixel-perfect reproduction of the source's unstyled custom-CSS hooks; Bootstrap utilities are authoritative.
 
 ## Decisions
@@ -45,32 +46,35 @@ Each piece keeps an `image` field holding a URL; the card renders `<img src="${p
 
 *Trade-off*: a placeholder URL may require network access; the descriptive `alt` text guarantees the page remains meaningful if the image does not load, and `img-thumbnail` keeps the layout stable.
 
-### 4. Navbar "+" dropdown uses Bootstrap's dropdown component
+### 4. "New" dropdown button positioned to the right of the search bar
 
-Mark up the button with `data-bs-toggle="dropdown"` and rely on the already-loaded `bootstrap.bundle.min.js`. No custom toggle script is needed, and it stays consistent with DevToolkit's Bootstrap version.
+Move the tool links dropdown out of the navbar and place it directly to the right of the search bar. Replace the "+" label with the text "New". Mark up the button with `data-bs-toggle="dropdown"` and rely on the already-loaded `bootstrap.bundle.min.js`. The dropdown menu items link to `/template`, `/editor`, and `/markdown-editor`, redirecting to each respective page on click.
 
-*Alternative considered*: hand-rolled show/hide JS. Rejected as unnecessary duplication of framework behavior.
+*Alternative considered*: keeping the dropdown in the navbar. Rejected per user requirement to place it next to the search bar.
 
-### 5. In-memory state and a data module
+### 5. In-memory state without favorites
 
-`gallery-data.js` exports `CATEGORIES` and `PIECES` (8 pieces across 5 categories) ported from `bootstrap-gallery/src/data.js`. `gallery.js` holds the render state (`category`, `query`, `favoritesOnly`, a `favorites` Set, a `removed` Set) and re-renders on every change, mirroring the source model. No server calls are introduced.
+`gallery-data.js` exports `CATEGORIES` and `PIECES` (8 pieces across 5 categories) ported from `bootstrap-gallery/src/data.js`. `gallery.js` holds the render state (`category`, `query`, a `removed` Set) and re-renders on every change. The heart icon and saved-only state (`favoritesOnly`, `favorites` Set, `#favToggle`, `#favCount`) are omitted entirely.
 
-### 6. Preserve functional element IDs
+### 6. Card actions and functional element IDs
 
-Keep the source element IDs (`filters`, `search`, `gallery`, `resultCount`, `emptyState`, `resetFilters`, `favToggle`, `favCount`) so the ported script is a near-direct translation that is easy to review. The unstyled `toolbar`/`piece-card`/`swatch` classes may be retained as hooks or replaced by Bootstrap utilities; keeping them is harmless.
+Keep the functional element IDs (`filters`, `search`, `gallery`, `resultCount`, `emptyState`, `resetFilters`). For each piece card, remove the heart icon and position the "X" remove button at the top right corner using `position-absolute top-0 end-0 m-2`.
+
+### 7. Retain standard DevToolkit footer
+
+Retain DevToolkit's standard footer markup (`<footer class="bg-light"><div class="text-center py-2">&copy; <span id="currentYear"></span> Devtoolkit. All rights reserved.</div></footer>`) to ensure visual and structural consistency with `/template`, `/editor`, and `/markdown-editor`.
 
 ## Risks / Trade-offs
 
 - **Placeholder images may not load or may need network access** → The `alt` attribute is always present and `img-thumbnail` preserves layout, so the page degrades gracefully; use a reachable placeholder URL.
 - **Bootstrap dropdown requires the bundle JS** → The current `index.html` already includes `bootstrap.bundle.min.js`; keep that `<script>` when rewriting the page.
 - **Dropping Google Fonts changes the typeface** → Acceptable; Bootstrap's default font stack applies and no behavior changes.
-- **Favorites are lost on refresh** → Matches the source behavior; persisted favorites are out of scope.
-- **The old welcome page's tool card disappears** → Mitigated by the navbar "+" dropdown that exposes the same three tool links.
+- **The old welcome page's tool card disappears** → Mitigated by the "New" dropdown next to the search bar that exposes the same three tool links.
 
 ## Migration Plan
 
 1. Add `public/static/scripts/gallery-data.js` (categories and pieces) and `public/static/scripts/gallery.js` (state and rendering).
-2. Rewrite `public/index.html`: keep the `<head>` structure, navbar markup, and Bootstrap CDN references; add the "+" tool-links dropdown, the gallery header, controls, grid, empty state, and footer; reference the gallery module.
+2. Rewrite `public/index.html`: keep the `<head>` structure, navbar markup, and Bootstrap CDN references; add the "New" tool-links dropdown to the right of the search bar, the gallery header, controls, grid, empty state, and DevToolkit's standard footer; reference the gallery module.
 3. No server changes are required; `express.static` already serves the new scripts.
 4. Rollback is restoring the previous `public/index.html` and deleting the two new script files.
 5. Validate with the existing `npm test` suite and a manual load of `/`.

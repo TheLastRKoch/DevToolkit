@@ -17,20 +17,25 @@ When a client requests `/`, DevToolkit SHALL serve the gallery home page contain
 - **AND** the DevToolkit navbar with the `Devtoolkit` brand is present
 - **AND** the gallery header and gallery region are present
 
-### Requirement: Navbar keeps DevToolkit chrome and adds a "+" tool-links dropdown
+### Requirement: Navbar keeps DevToolkit chrome and search bar includes a "New" tool-links dropdown
 
-The home page SHALL retain DevToolkit's existing dark navbar with the `Devtoolkit` brand linking to `/`, and SHALL add a "+" button that, when activated, reveals the DevToolkit tool links (Template, Editor, Markdown Editor).
+The home page SHALL retain DevToolkit's existing dark navbar with the `Devtoolkit` brand linking to `/`, without a saved button. The gallery controls region SHALL provide a "New" dropdown button located immediately to the right of the search bar that, when activated, reveals the DevToolkit tool links (Template, Editor, Markdown Editor). Clicking each option SHALL redirect to its respective page.
 
-#### Scenario: Tool links are hidden until the "+" button is activated
+#### Scenario: Tool links are hidden until the "New" button is activated
 
 - **WHEN** the user opens the home page
-- **THEN** a "+" button is visible in the navbar
+- **THEN** a "New" dropdown button is visible to the right of the search bar
 - **AND** the Template, Editor, and Markdown Editor links are not visible
 
-#### Scenario: Activating the "+" button reveals the tool links
+#### Scenario: Activating the "New" button reveals the tool links
 
-- **WHEN** the user activates the "+" button
+- **WHEN** the user activates the "New" button
 - **THEN** a dropdown appears containing links to `/template`, `/editor`, and `/markdown-editor`
+
+#### Scenario: Clicking an option navigates to the target page
+
+- **WHEN** the user clicks an option in the "New" dropdown menu
+- **THEN** the browser navigates to that option's target URL (`/template`, `/editor`, or `/markdown-editor`)
 
 ### Requirement: Gallery header describes the collection
 
@@ -87,28 +92,31 @@ The gallery SHALL display a live result count of the currently visible pieces an
 #### Scenario: Reset restores the default view
 
 - **WHEN** the user activates the reset control
-- **THEN** the category returns to "All", the search query is cleared, the saved-only filter is disabled, and any removed pieces are restored
+- **THEN** the category returns to "All", the search query is cleared, and any removed pieces are restored
 
-### Requirement: Saved toggle and per-piece removal
+### Requirement: Per-piece removal and card actions
 
-The gallery SHALL let the user save and unsave pieces, SHALL provide a saved-only toggle that shows only saved pieces, SHALL display the saved count, and SHALL let the user remove a piece from the current view.
+The gallery SHALL let the user remove a piece from the current view using an "X" button positioned at the top-right of each piece card. Gallery cards SHALL NOT contain a heart/save icon, and the page SHALL NOT include a saved-pieces filter or counter button.
 
-#### Scenario: Saved count updates as pieces are saved
+#### Scenario: Card renders top-right X button without heart icon
 
-- **WHEN** the user saves or unsaves a piece
-- **THEN** the saved count reflects the current number of saved pieces
-
-#### Scenario: Saved-only toggle filters to saved pieces
-
-- **WHEN** the saved-only toggle is enabled
-- **THEN** only saved pieces are shown
-- **AND** the toggle indicates its active state
+- **WHEN** a piece card is rendered
+- **THEN** an "X" remove button is visible at the top-right corner of the card
+- **AND** no heart or save button is present on the card
 
 #### Scenario: Removing a piece takes it out of the view
 
-- **WHEN** the user removes a piece
+- **WHEN** the user activates the "X" remove button on a piece
 - **THEN** that piece is no longer visible in the gallery
-- **AND** it is no longer counted as saved
+
+### Requirement: Home page renders DevToolkit footer
+
+The home page SHALL retain DevToolkit's standard footer structure and copyright text.
+
+#### Scenario: DevToolkit footer is present
+
+- **WHEN** the home page is rendered
+- **THEN** the standard DevToolkit footer with copyright notice is displayed at the bottom of the page
 
 ### Requirement: Piece images render with Bootstrap thumbnail styling
 

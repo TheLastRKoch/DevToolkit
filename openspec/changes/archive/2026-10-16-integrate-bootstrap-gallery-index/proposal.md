@@ -6,9 +6,10 @@ DevToolkit's `/` route currently serves a minimal welcome page that only lists l
 
 ## What Changes
 
-- Replace the content served at `/` (the current `public/index.html` welcome/jumbotron and tool card) with a ported version of the `bootstrap-gallery` index page, while keeping DevToolkit's existing navbar markup (`nav.navbar.navbar-expand-lg.navbar-dark.bg-dark` with the `Devtoolkit` brand) and its Bootstrap 5.3.0-alpha1 CDN stylesheet/script links.
-- Extend the DevToolkit navbar with a "+" dropdown button that reveals the DevToolkit tool links — Template, Editor, and Markdown Editor — preserving access to the tools that the old welcome page listed.
-- Port the gallery's client-side interactivity as dependency-free vanilla JavaScript (an ES module under `public/static/scripts/`): category filters, free-text search, saved/favorites toggle with a visible count, per-piece remove, and reset filters with an empty state.
+- Replace the content served at `/` (the current `public/index.html` welcome/jumbotron and tool card) with a ported version of the `bootstrap-gallery` index page, while keeping DevToolkit's existing navbar markup (`nav.navbar.navbar-expand-lg.navbar-dark.bg-dark` with the `Devtoolkit` brand) and its Bootstrap 5.3.0-alpha1 CDN stylesheet/script links, as well as DevToolkit's standard footer.
+- Add a "New" dropdown button to the right of the search bar that reveals the DevToolkit tool links — Template, Editor, and Markdown Editor — redirecting to each tool page on click and preserving access to the tools that the old welcome page listed.
+- Remove the heart (saved/favorite) icon from gallery cards and remove the saved button from the navbar. Position the "X" remove button at the top-right of each card.
+- Port the gallery's client-side interactivity as dependency-free vanilla JavaScript (an ES module under `public/static/scripts/`): category filters, free-text search, per-piece remove, and reset filters with an empty state.
 - Port the gallery's piece data (8 pieces across 5 categories) into a DevToolkit-served data module.
 - Render each piece image as `<img src="..." alt="..." class="img-thumbnail">`; do **not** copy `bootstrap-gallery`'s binary assets into DevToolkit.
 - Drop `bootstrap-gallery`'s extra front-end dependencies (Bootstrap Icons, Google Fonts) and use DevToolkit's existing Bootstrap only, replacing icon glyphs (`bi bi-search`, `bi bi-cup`) with text/Unicode cues.
@@ -18,7 +19,7 @@ DevToolkit's `/` route currently serves a minimal welcome page that only lists l
 
 ### New Capabilities
 
-- `gallery-home-page`: The DevToolkit home page served at `/` — its navbar (including the "+" tool-links dropdown) and the interactive ceramics gallery (header, category filters, search, result count, image cards, saved/favorites toggle, remove, empty state, and reset).
+- `gallery-home-page`: The DevToolkit home page served at `/` — its navbar, standard DevToolkit footer, search bar with adjacent "New" tool dropdown, and interactive ceramics gallery (header, category filters, search, result count, image cards with top-right X remove button, empty state, and reset).
 
 ### Modified Capabilities
 
@@ -26,8 +27,8 @@ DevToolkit's `/` route currently serves a minimal welcome page that only lists l
 
 ## Impact
 
-- `public/index.html` — rewritten to host the gallery while retaining the existing DevToolkit navbar and Bootstrap CDN references.
-- `public/static/scripts/gallery.js` (new) — vanilla ES module implementing filters, search, favorites, remove, and reset.
+- `public/index.html` — rewritten to host the gallery with DevToolkit's navbar and standard footer, a "New" tools dropdown beside the search bar, no saved button in the navbar, and cards with a top-right X button and no heart icon.
+- `public/static/scripts/gallery.js` (new) — vanilla ES module implementing filters, search, remove, and reset.
 - `public/static/scripts/gallery-data.js` (new) — `CATEGORIES` and `PIECES` data definitions.
 - No Express route or API changes: `server.js` is unchanged and `express.static(public)` already serves the new assets.
 - No new npm dependencies and no bundler introduced (the page loads a plain ES module, matching the existing `public/static/scripts/*.js` convention).
