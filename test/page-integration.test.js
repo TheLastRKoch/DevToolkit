@@ -6,22 +6,18 @@ const {
     openTemplatePage,
     openMarkdownPage,
     openTextEditorPage,
+    openGalleryPage,
     readPage,
     readScript,
     sessionsModule,
+    storedSession,
 } = require('./helpers/pages.js');
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const PAGES = [
-    { path: '/template/1', file: 'template.html', script: 'template.js', breadcrumb: 'Template' },
-    { path: '/text-editor/1', file: 'text-editor.html', script: 'text-editor.js', breadcrumb: 'Text Editor' },
-    { path: '/markdown-editor/1', file: 'markdown-editor.html', script: 'markdown-editor.js', breadcrumb: 'Markdown Editor' },
+    { script: 'template.js', file: 'template.html', breadcrumb: 'Template', options: ['Clear variables', 'Clear all'] },
+    { script: 'text-editor.js', file: 'text-editor.html', breadcrumb: 'Text Editor', options: ['Clear editor'] },
+    { script: 'markdown-editor.js', file: 'markdown-editor.html', breadcrumb: 'Markdown Editor', options: ['Clear editor'] },
 ];
-const EXPECTED_OPTIONS = {
-    'template.js': ['New session', 'Clear variables', 'Clear all'],
-    'text-editor.js': ['New session', 'Clear editor'],
-    'markdown-editor.js': ['New session', 'Clear editor'],
-};
 
 let server;
 let baseUrl;
@@ -57,134 +53,185 @@ function declaredList(script, key) {
     return [...script.slice(open, end + 1).matchAll(/label: '([^']+)'/g)].map((match) => match[1]);
 }
 
+function latestVersion(session) {
+    return session.versions[session.versions.length - 1];
+}
+
 test('every editing page serves the shared header with its own options', async () => {
     for (const page of PAGES) {
-        const response = await fetch(`${baseUrl}${page.path}`);
-        assert.equal(response.status, 200, `${page.path} should resolve`);
-        const html = await response.text();
-
-        assert.ok(html.includes('id="pageHeader"'), `${page.file} should mount the shared header`);
-        assert.ok(html.includes('browser-session.js'), `${page.file} should load the session store`);
-        assert.ok(html.includes('page-header.js'), `${page.file} should load the shared header`);
-        assert.ok(!html.includes('aria-label="breadcrumb"'), `${page.file} should not own breadcrumb markup`);
-        assert.equal(
-            html.split('pageOptionsMenu').length - 1,
-            0,
-            `${page.file} should not own dropdown markup`,
-        );
+        for (const path of ['/' + page.file.replace('.html', '')]) {
+            const response = await fetch(`${baseUrl}${path}`);
+            assert.equal(response.status, 200, `${path} should resolve`);
+            const html = await response.text();
+            assert.ok(html.includes('id="pageHeader"'), `${page.file} should mount the shared header`);
+            assert.ok(html.includes('browser-session.js'), `${page.file} should load the session store`);
+            assert.ok(html.includes('page-header.js'), `${page.file} should load the shared header`);
+            assert.ok(!html.includes('aria-label="breadcrumb"'), `${page.file} should not own breadcrumb markup`);
+            assert.equal(html.split('pageOptionsMenu').length - 1, 0, `${page.file} should not own dropdown markup`);
+            assert.ok(!html.includes('bootstrap.bundle'), `${page.file} should not need Bootstrap JS for its header menu`);
+        }
 
         const script = readScript(page.script);
-        assert.deepEqual(declaredList(script, 'options'), EXPECTED_OPTIONS[page.script], `${page.script} options`);
+        assert.deepEqual(declaredList(script, 'options'), page.options, `${page.script} options`);
         assert.deepEqual(declaredList(script, 'breadcrumb'), ['Home', page.breadcrumb], `${page.script} breadcrumb`);
     }
 });
 
-test('the shared header renders the same row on every page', () => {
-    const template = openTemplatePage(sessionsModule.memoryStorage());
-    const textEditor = openTextEditorPage(sessionsModule.memoryStorage());
-    const markdown = openMarkdownPage(sessionsModule.memoryStorage());
+test('a page whose browser storage is unavailable stays usable and reports it', () => {
+    const storage = sessionsModule.memoryStorage();
+    storage.setItem = () => {
+        throw new Error('SecurityError');
+    };
 
-    const rows = [template, textEditor, markdown].map((page) => page.element('pageHeader').children[0]);
+    const page = openMarkdownPage(storage);
+    const status = page.element('pageHeaderStatus');
+    assert.equal(status.hidden, false, 'the page reports that nothing can be persisted');
+    assert.match(status.textContent, /not be persisted/);
+
+    page.type('mdInput', 'still usable');
+    assert.equal(page.element('mdInput').value, 'still usable', 'the page keeps working in view');
+    assert.equal(page.element('mdPreview').innerHTML, '<p>still usable</p>');
+
+    page.typeTitle('Unsaved notes');
+    assert.equal(storedSession(storage, 'markdown-editor'), null, 'a failed write stores nothing');
+    assert.equal(page.beforeUnloadProbe(), true, 'unsaved work is still protected');
+});
+
+test('the shared header renders the same row on every page with its own content', () => {
+    const storage = sessionsModule.memoryStorage();
+    const pages = [
+        openTemplatePage(storage),
+        openTextEditorPage(storage),
+        openMarkdownPage(storage),
+    ];
+
+    const rows = pages.map((page) => page.headerElement());
     for (const row of rows) {
         assert.equal(row.getAttribute('class'), 'row mt-3');
         assert.equal(row.children.length, 3, 'breadcrumb column, controls column, and status area');
     }
-    assert.deepEqual(rows[1].children.map((child) => child.getAttribute('class')), rows[0].children.map((child) => child.getAttribute('class')));
+    const layout = rows[0].children.map((child) => child.getAttribute('class'));
+    for (const row of rows.slice(1)) {
+        assert.deepEqual(row.children.map((child) => child.getAttribute('class')), layout, 'every page uses the same header row layout');
+    }
 
-    const breadcrumbs = [template, textEditor, markdown].map((page) => page.breadcrumbItems());
-    assert.deepEqual(breadcrumbs, [['Home', 'Template'], ['Home', 'Text Editor'], ['Home', 'Markdown Editor']]);
-
-    for (const page of [template, textEditor, markdown]) {
-        assert.ok(page.element('pageNameInput'), 'every page shows the page name textbox');
-        assert.equal(page.element('pageOptionsToggle').textContent, 'Options');
+    assert.deepEqual(pages.map((page) => page.breadcrumbItems()), [
+        ['Home', 'Template'],
+        ['Home', 'Text Editor'],
+        ['Home', 'Markdown Editor'],
+    ]);
+    assert.deepEqual(pages.map((page) => page.element('pageOptionsToggle').textContent), ['Options', 'Options', 'Options']);
+    for (const page of pages) {
+        assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
+        assert.equal(page.document.title, 'Devtoolkit', 'an untitled page keeps the default tab title');
     }
 });
 
-test('the same session identifier keeps separate state on each page', () => {
+test('conditional persistence is title-gated and the saved title is immutable', () => {
+    const storage = sessionsModule.memoryStorage();
+    const page = openMarkdownPage(storage);
+    const key = 'devtoolkit:sessions:markdown-editor';
+
+    page.type('mdInput', '# Draft work');
+    assert.equal(storage.getItem(key), null, 'an untitled session is not persisted');
+
+    page.typeTitle('DevToolKit');
+    assert.equal(storage.getItem(key), null, 'the default placeholder is not a valid title');
+    page.typeTitle('   ');
+    assert.equal(storage.getItem(key), null, 'a whitespace title is not a valid title');
+    assert.equal(page.titleInput().getAttribute('disabled'), null, 'the title stays editable');
+
+    page.typeTitle('Weekly notes');
+    page.hide();
+    const session = storedSession(storage, 'markdown-editor');
+    assert.equal(session.title, 'Weekly notes', 'a valid title enables persistence');
+    assert.equal(latestVersion(session).content, '# Draft work');
+    assert.equal(page.titleInput().getAttribute('disabled'), 'true', 'the saved title is immutable');
+
+    page.type('pageTitleInput', 'Renamed');
+    assert.equal(storedSession(storage, 'markdown-editor').title, 'Weekly notes', 'the saved title cannot be renamed');
+    assert.equal(page.document.title, 'Weekly notes', 'a locked title ignores further edits');
+});
+
+test('versioning creates, deduplicates, and truncates snapshots on visibility change', () => {
+    const storage = sessionsModule.memoryStorage();
+    const page = openMarkdownPage(storage);
+    page.typeTitle('Snapshot notes');
+    assert.equal(storedSession(storage, 'markdown-editor').versions.length, 0, 'a title alone creates no version');
+
+    page.type('mdInput', 'v1');
+    page.hide();
+    let session = storedSession(storage, 'markdown-editor');
+    assert.equal(session.versions.length, 1, 'leaving the tab snapshots the current content');
+    assert.equal(latestVersion(session).content, 'v1');
+    assert.ok(Date.parse(latestVersion(session).updatedDate), 'the snapshot carries an ISO timestamp');
+
+    page.type('mdInput', 'v1');
+    page.show();
+    page.hide();
+    assert.equal(storedSession(storage, 'markdown-editor').versions.length, 1, 'unchanged content is not duplicated');
+
+    for (const content of ['v2', 'v3', 'v4']) {
+        page.type('mdInput', content);
+        page.show();
+        page.hide();
+    }
+    session = storedSession(storage, 'markdown-editor');
+    assert.equal(session.versions.length, 3, 'only the last three versions are kept');
+    assert.deepEqual(session.versions.map((version) => version.content), ['v2', 'v3', 'v4']);
+});
+
+test('the home gallery shows, filters, and deletes sessions saved by the pages', () => {
     const storage = sessionsModule.memoryStorage();
 
     const template = openTemplatePage(storage);
-    template.element('txtInput').value = 'Template body';
-    template.element('txtInput').dispatch('input', {});
-    template.element('pageNameInput').value = 'Template one';
-    template.element('pageNameInput').dispatch('input', {});
-
-    const markdown = openMarkdownPage(storage);
-    markdown.element('mdInput').value = 'Markdown body';
-    markdown.element('mdInput').dispatch('input', {});
-    markdown.element('pageNameInput').value = 'Markdown one';
-    markdown.element('pageNameInput').dispatch('input', {});
+    template.type('txtInput', 'Hello @[name]');
+    template.type('txtVariables', '@[name]=Ada');
+    template.typeTitle('Invoice');
+    template.hide();
 
     const textEditor = openTextEditorPage(storage);
-    textEditor.quill.root.innerHTML = '<p>Text body</p>';
+    textEditor.quill.root.innerHTML = '<p>Letter</p>';
     textEditor.quill.emit('text-change', [], [], 'user');
-    textEditor.element('pageNameInput').value = 'Text one';
-    textEditor.element('pageNameInput').dispatch('input', {});
+    textEditor.typeTitle('Letter');
+    textEditor.hide();
 
-    assert.equal(template.storedSession(1).name, 'Template one');
-    assert.equal(template.storedSession(1).data.text, 'Template body');
-    assert.equal(markdown.storedSession(1).name, 'Markdown one');
-    assert.equal(markdown.storedSession(1).data.markdown, 'Markdown body');
-    assert.equal(textEditor.storedSession(1).name, 'Text one');
-    assert.equal(textEditor.storedSession(1).data.html, '<p>Text body</p>');
+    const gallery = openGalleryPage(storage);
+    const titles = () => gallery.cards().map((card) => card.children[0].children[0].children[0].children[0].textContent);
+    assert.deepEqual(titles().sort(), ['Invoice', 'Letter']);
 
-    assert.deepEqual(template.storedSession(1).data, { text: 'Template body', variables: {} });
-    assert.deepEqual(markdown.storedSession(1).data, { markdown: 'Markdown body' });
+    gallery.clickFilter('template');
+    assert.deepEqual(titles(), ['Invoice']);
+
+    gallery.search('letter');
+    assert.equal(gallery.cards().length, 0, 'search and kind filters combine');
+
+    gallery.clickFilter('All');
+    assert.deepEqual(titles(), ['Letter']);
+
+    gallery.removeCard(0);
+    assert.equal(storage.getItem('devtoolkit:sessions:text-editor'), null, 'the card deletes the session');
+    assert.equal(storage.getItem('devtoolkit:sessions:template') !== null, true, 'the other session is untouched');
+    assert.equal(gallery.cards().length, 0);
+    assert.equal(gallery.element('emptyState').classList.contains('d-none'), false, 'the gallery falls back to its empty state');
 });
 
-test('session state survives without any server request and expires after 30 days', () => {
-    const storage = sessionsModule.memoryStorage();
-    let current = 0;
-    const now = () => current;
-
-    const template = openTemplatePage(storage, { clock: now });
-    template.element('txtInput').value = 'Dated body';
-    template.element('txtInput').dispatch('input', {});
-    template.element('pageNameInput').value = 'Dated';
-    template.element('pageNameInput').dispatch('input', {});
-
-    const markdown = openMarkdownPage(storage, { clock: now });
-    markdown.element('mdInput').value = 'Dated markdown';
-    markdown.element('mdInput').dispatch('input', {});
-
-    current += 29 * DAY_MS;
-    const stillThere = openTemplatePage(storage, { clock: now });
-    assert.equal(stillThere.element('txtInput').value, 'Dated body', 'a 29 day old session is restored');
-    assert.equal(stillThere.element('pageNameInput').value, 'Dated');
-
-    current += 2 * DAY_MS;
-    const expired = openTemplatePage(storage, { clock: now });
-    assert.equal(expired.element('txtInput').value, '', 'a session older than 30 days starts fresh');
-    assert.equal(expired.element('pageNameInput').value, 'Devtoolkit');
-
-    const expiredMarkdown = openMarkdownPage(storage, { clock: now });
-    assert.equal(expiredMarkdown.element('mdInput').value, '');
-});
-
-test('the renamed, kept, and legacy URLs all still resolve', async () => {
+test('the kept and legacy URLs resolve and the server template API still works', async () => {
     const legacy = await fetch(`${baseUrl}/editor`, { redirect: 'manual' });
     assert.equal(legacy.status, 301);
     assert.equal(legacy.headers.get('location'), '/text-editor');
 
-    for (const path of ['/editor', '/text-editor', '/text-editor/1', '/template', '/template/1', '/markdown-editor', '/markdown-editor/1']) {
+    for (const path of ['/', '/editor', '/text-editor', '/template', '/markdown-editor']) {
         const response = await fetch(`${baseUrl}${path}`);
         assert.equal(response.status, 200, `${path} should resolve to a page`);
     }
 
-    for (const path of ['/text-editor/abc', '/markdown-editor/abc', '/template/abc']) {
-        const response = await fetch(`${baseUrl}${path}`);
-        assert.equal(response.status, 400, `${path} should be rejected`);
-    }
-});
-
-test('the server-side template API is still available alongside browser sessions', async () => {
     const created = await fetch(`${baseUrl}/api/template/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
     });
     assert.equal(created.status, 201);
-    const { id, path } = await created.json();
-    assert.match(path, /^\/template\/[1-9][0-9]*$/);
+    const { id } = await created.json();
 
     const patched = await fetch(`${baseUrl}/api/template/${id}`, {
         method: 'PATCH',

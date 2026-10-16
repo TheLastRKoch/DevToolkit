@@ -60,7 +60,7 @@ test('Interactive simulation of pane state toggling', () => {
     const btnExpandEditor = dom.document.getElementById('btnExpandEditor');
     const btnExpandPreview = dom.document.getElementById('btnExpandPreview');
 
-    const window = createWindow('/markdown-editor/1');
+    const window = createWindow('/markdown-editor');
     window.requestAnimationFrame = (cb) => cb();
 
     const storage = sessionsModule.memoryStorage();

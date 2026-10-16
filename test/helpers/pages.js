@@ -1,9 +1,10 @@
 /**
- * Page harnesses for the DevToolkit editing pages.
+ * Page harnesses for the DevToolkit pages.
  *
  * Each harness builds a mock DOM for the page's elements, runs the page script in
  * the sandbox provided by helpers/mock-dom.js, and exposes the elements, the
- * shared header, and the session store so tests can assert stored state.
+ * shared header, the session store, and the navigate-away events so tests can
+ * assert browser-stored state.
  */
 'use strict';
 
@@ -20,68 +21,121 @@ function readScript(file) {
     return fs.readFileSync(path.join(root, 'public/static/scripts', file), 'utf8');
 }
 
+function readPage(file) {
+    return fs.readFileSync(path.join(root, 'public', file), 'utf8');
+}
+
 function sessionGlobals({ storage, clock }) {
     return Object.assign({}, sessionsModule, {
         browserStorage: () => storage,
-        openStore: (pageType, target, options) => sessionsModule.openStore(
-            pageType,
+        openStore: (kind, target, options) => sessionsModule.openStore(
+            kind,
             target,
             Object.assign({}, options, clock ? { now: clock } : {}),
         ),
     });
 }
 
-function pageHarness({ dom, window }) {
+function storedSession(storage, kind) {
+    const raw = storage.getItem(sessionsModule.sessionKey(kind));
+    return raw ? JSON.parse(raw) : null;
+}
+
+/** Seeds a stored, titled session so a page load can restore it. */
+function seedSession(storage, kind, { title, content, variables }, clock) {
+    const store = sessionsModule.openStore(kind, storage, clock ? { now: clock } : {});
+    store.save({ title, content, variables });
+    store.snapshot();
+    return store;
+}
+
+function pageHarness({ dom, window, kind, storage }) {
+    const headerElement = () => dom.document.getElementById('pageHeader').children[0];
+
     return {
-        window,
         document: dom.document,
         element: (id) => dom.document.getElementById(id),
+        headerElement,
+        titleInput: () => dom.document.getElementById('pageTitleInput'),
         optionItems: () => dom.document.getElementById('pageOptionsMenu').children.map((item) => item.children[0]),
         breadcrumbItems: () => {
-            const list = dom.document.getElementById('pageHeader').children[0].children[0].children[0].children[0];
+            const list = headerElement().children[0].children[0].children[0];
             return list.children.map((item) => item.textContent || (item.children[0] && item.children[0].textContent));
         },
         openOptions: () => dom.document.getElementById('pageOptionsToggle').dispatch('click', { preventDefault() {} }),
+        selectOption: (index) => dom.document.getElementById('pageOptionsMenu').children[index].children[0].dispatch('click', {}),
+        /** Types into an element and fires its input event, like a user would. */
+        type: (id, value) => {
+            const element = dom.document.getElementById(id);
+            element.value = value;
+            element.dispatch('input', {});
+        },
+        /** Types a title into the shared header's textbox. */
+        typeTitle: (value) => {
+            const input = dom.document.getElementById('pageTitleInput');
+            input.value = value;
+            input.dispatch('input', {});
+        },
+        /** Leaves the tab: the visibility change a page snapshots on. */
+        hide: () => {
+            dom.document.visibilityState = 'hidden';
+            dom.document.dispatch('visibilitychange', {});
+        },
+        show: () => {
+            dom.document.visibilityState = 'visible';
+            dom.document.dispatch('visibilitychange', {});
+        },
+        unload: () => window.dispatch('pagehide', {}),
+        beforeUnloadProbe: () => {
+            let prevented = false;
+            window.dispatch('beforeunload', {
+                preventDefault() {
+                    prevented = true;
+                },
+                set returnValue(value) {
+                    prevented = true;
+                },
+            });
+            return prevented;
+        },
+        storedSession: () => storedSession(storage, kind),
     };
 }
 
-function openTemplatePage(storage, { clock, pathname = '/template/1' } = {}) {
-    const dom = createDom([
-        'pageHeader', 'txtInput', 'txtOutput', 'txtVariables', 'variablesPanel',
-        'templatePanel', 'templateTab', 'variablesTab', 'currentYear',
-    ]);
-    const window = createWindow(pathname);
-    runScript(readScript('template.js'), {
+function buildHarness({ ids, script, globals, storage, kind, clock }) {
+    const dom = createDom(ids.concat(['pageHeader']));
+    const window = createWindow('/' + kind);
+    window.requestAnimationFrame = (cb) => cb();
+    runScript(script, {
         document: dom.document,
         window,
-        globals: {
+        globals: Object.assign({}, globals, {
             DevToolkitSessions: sessionGlobals({ storage, clock }),
             DevToolkitPageHeader: withDocument(pageHeaderModule, dom.document),
-        },
+        }),
     });
-    return Object.assign(pageHarness({ dom, window, pageType: 'template', sessionId: 1 }), {
-        storedSession: (sessionId = 1) => sessionsModule.openStore('template', storage).get(sessionId),
+    return pageHarness({ dom, window, kind, storage });
+}
+
+function openTemplatePage(storage, { clock } = {}) {
+    return buildHarness({
+        ids: ['txtInput', 'txtOutput', 'txtVariables', 'variablesPanel', 'templatePanel', 'templateTab', 'variablesTab', 'currentYear'],
+        script: readScript('template.js'),
+        storage,
+        clock,
+        kind: 'template',
+        globals: {},
     });
 }
 
-function openMarkdownPage(storage, { clock, pathname = '/markdown-editor/1' } = {}) {
-    const dom = createDom([
-        'pageHeader', 'mdInput', 'mdPreview', 'charCount', 'btnExpandEditor', 'btnExpandPreview',
-        'rawPane', 'previewPane', 'paneDivider', 'paneDividerMobile', 'currentYear',
-    ]);
-    const window = createWindow(pathname);
-    window.requestAnimationFrame = (cb) => cb();
-    runScript(readScript('markdown-editor.js'), {
-        document: dom.document,
-        window,
-        globals: {
-            marked: { parse: (text) => `<p>${text}</p>` },
-            DevToolkitSessions: sessionGlobals({ storage, clock }),
-            DevToolkitPageHeader: withDocument(pageHeaderModule, dom.document),
-        },
-    });
-    return Object.assign(pageHarness({ dom, window, pageType: 'markdown-editor', sessionId: 1 }), {
-        storedSession: (sessionId = 1) => sessionsModule.openStore('markdown-editor', storage).get(sessionId),
+function openMarkdownPage(storage, { clock } = {}) {
+    return buildHarness({
+        ids: ['mdInput', 'mdPreview', 'charCount', 'btnExpandEditor', 'btnExpandPreview', 'rawPane', 'previewPane', 'paneDivider', 'paneDividerMobile', 'currentYear'],
+        script: readScript('markdown-editor.js'),
+        storage,
+        clock,
+        kind: 'markdown-editor',
+        globals: { marked: { parse: (text) => `<p>${text}</p>` } },
     });
 }
 
@@ -119,39 +173,91 @@ function createQuillStub() {
     return { Quill, instances, conversions };
 }
 
-function openTextEditorPage(storage, { clock, pathname = '/text-editor/1', sessionId = 1, initialHtml } = {}) {
-    const dom = createDom(['pageHeader', 'txtOutput', 'currentYear']);
-    const window = createWindow(pathname);
-    const quillStub = createQuillStub();
-    const store = sessionsModule.openStore('text-editor', storage);
-    store.ensure(sessionId, { html: '' });
-    if (initialHtml) {
-        store.save(sessionId, { data: { html: initialHtml } });
+function openTextEditorPage(storage, { clock, initialHtml, title } = {}) {
+    const seeded = title || initialHtml !== undefined ? { title: title || 'Restored session', content: initialHtml || '' } : null;
+    if (seeded) {
+        seedSession(storage, 'text-editor', seeded, clock);
     }
-
-    runScript(readScript('text-editor.js'), {
-        document: dom.document,
-        window,
-        globals: {
-            Quill: quillStub.Quill,
-            DevToolkitSessions: sessionGlobals({ storage, clock }),
-            DevToolkitPageHeader: withDocument(pageHeaderModule, dom.document),
-        },
+    const quillStub = createQuillStub();
+    const page = buildHarness({
+        ids: ['txtOutput', 'currentYear'],
+        script: readScript('text-editor.js'),
+        storage,
+        clock,
+        kind: 'text-editor',
+        globals: { Quill: quillStub.Quill },
     });
-
-    return Object.assign(pageHarness({ dom, window, pageType: 'text-editor', sessionId }), {
-        quill: quillStub.instances[0],
-        conversions: quillStub.conversions,
-        storedSession: (id = sessionId) => sessionsModule.openStore('text-editor', storage).get(id),
-    });
+    page.quill = quillStub.instances[0];
+    page.conversions = quillStub.conversions;
+    return page;
 }
 
-const readPage = (file) => fs.readFileSync(path.join(root, 'public', file), 'utf8');
+function openGalleryPage(storage, { clock } = {}) {
+    const dom = createDom(['filters', 'search', 'gallery', 'resultCount', 'emptyState', 'resetFilters', 'currentYear']);
+    const window = createWindow('/');
+    const sandbox = {};
+    runScript(readScript('gallery.js'), {
+        document: dom.document,
+        window,
+        sandbox,
+        globals: {
+            DevToolkitSessions: sessionGlobals({ storage, clock }),
+        },
+    });
+    return {
+        render: () => sandbox.DevToolkitGallery && sandbox.DevToolkitGallery.init({ document: dom.document }),
+        window,
+        document: dom.document,
+        element: (id) => dom.document.getElementById(id),
+        cards: () => dom.document.getElementById('gallery').children,
+        filterButtons: () => dom.document.getElementById('filters').children,
+        clickFilter: (label) => {
+            const button = dom.document.getElementById('filters').children.find((item) => item.textContent === label);
+            if (!button) {
+                throw new Error(`No filter button labelled ${label}`);
+            }
+            button.dispatch('click', { target: button });
+        },
+        search: (query) => {
+            const input = dom.document.getElementById('search');
+            input.value = query;
+            input.dispatch('input', {});
+        },
+        removeCard: (index) => {
+            const target = findRemoveButton(dom.document.getElementById('gallery').children[index]);
+            assertRemoveButton(target);
+            target.dispatch('click', { target });
+        },
+        storedKinds: () => sessionsModule.listAll(storage).map((session) => session.kind),
+    };
+}
+
+function assertRemoveButton(button) {
+    if (!button) {
+        throw new Error('No remove button found on the card');
+    }
+}
+
+function findRemoveButton(node) {
+    for (const child of node.children) {
+        if (child.getAttribute && child.getAttribute('class') && child.getAttribute('class').includes('remove-btn')) {
+            return child;
+        }
+        const nested = findRemoveButton(child);
+        if (nested) {
+            return nested;
+        }
+    }
+    return null;
+}
 
 module.exports = {
     openTemplatePage,
     openMarkdownPage,
     openTextEditorPage,
+    openGalleryPage,
+    seedSession,
+    storedSession,
     readPage,
     readScript,
     sessionsModule,

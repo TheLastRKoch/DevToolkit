@@ -1,9 +1,12 @@
+/**
+ * Template page – DevToolkit
+ *
+ * The page owns one browser-side session (`devtoolkit:sessions:template`) holding
+ * the template text and its variable values. Nothing is written to storage until
+ * the user provides a valid title; the session then keeps the last three content
+ * snapshots, recorded when the user navigates away from the page.
+ */
 (function () {
-    const sessionId = window.location.pathname.match(/^\/template\/([1-9][0-9]*)$/)?.[1];
-    if (!sessionId) {
-        return;
-    }
-
     const input = document.getElementById('txtInput');
     const output = document.getElementById('txtOutput');
     const variablesPanel = document.getElementById('variablesPanel');
@@ -18,6 +21,7 @@
 
     let header = null;
     let dirty = false;
+    let variables = Object.create(null);
 
     const store = DevToolkitSessions.openStore('template', DevToolkitSessions.browserStorage(), {
         onWriteError: () => {
@@ -26,8 +30,8 @@
             }
         },
     });
-    const session = store.ensure(sessionId, { text: '', variables: {} });
-    let variables = readVariables(session.data.variables);
+    const session = store.get();
+    const stored = store.content();
 
     function readVariables(source) {
         const map = Object.create(null);
@@ -105,14 +109,44 @@
         output.value = input.value.replace(TOKEN_PATTERN, (rawToken, token) => variables[token] || rawToken);
     }
 
-    function persist(patch) {
+    /** Stages the page's state in the session; a titled session writes through. */
+    function persistContent() {
         dirty = true;
-        store.save(sessionId, patch);
-        dirty = !store.isPersisted();
+        store.save({ content: input.value, variables: snapshotVariables() });
     }
 
-    function persistTemplate() {
-        persist({ data: { text: input.value, variables: snapshotVariables() } });
+    /** Records the current content as a version when it changed. */
+    function snapshot() {
+        if (store.isTitled()) {
+            store.snapshot();
+        }
+    }
+
+    function onTitleChange(value) {
+        dirty = true;
+        store.save({ title: value });
+        if (!store.isTitled()) {
+            return;
+        }
+        snapshot();
+        if (store.isPersisted()) {
+            header.lockTitle();
+        }
+    }
+
+    function protectUnsavedWork(event) {
+        if (store.isTitled()) {
+            snapshot();
+            if (store.isPersisted()) {
+                return;
+            }
+        } else if (!dirty) {
+            return;
+        }
+        if (event) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
     }
 
     function selectTab(tab) {
@@ -129,15 +163,11 @@
         variablesPanel.hidden = !showVariables;
     }
 
-    function newSession() {
-        const id = store.allocateId();
-        window.open(`/template/${id}`, '_blank', 'noopener');
-    }
-
     function clearVariables() {
         variables = readVariables({});
         renderVariables();
-        persistTemplate();
+        persistContent();
+        dirty = input.value !== '';
     }
 
     function clearAll() {
@@ -145,49 +175,47 @@
         input.value = '';
         output.value = '';
         renderVariables();
-        persistTemplate();
+        persistContent();
+        dirty = false;
     }
 
-    header = DevToolkitPageHeader.init({
+    header = DevToolkitPageHeader.initPageHeader({
         mount: document.getElementById('pageHeader'),
         breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Template' }],
-        pageName: session.name,
+        title: session.title,
         persisted: store.isPersisted(),
-        onPageNameChange: (name) => persist({ name }),
+        onTitleChange,
         options: [
-            { id: 'new-session', label: 'New session', run: newSession },
             { id: 'clear-variables', label: 'Clear variables', run: clearVariables },
             { id: 'clear-all', label: 'Clear all', run: clearAll },
         ],
     });
 
-    input.value = session.data.text || '';
+    input.value = stored.content || '';
+    variables = readVariables(stored.variables);
     renderVariables();
+    output.value = '';
 
-    input.addEventListener('input', () => {
-        persistTemplate();
-    });
+    input.addEventListener('input', persistContent);
 
     input.addEventListener('blur', () => {
         syncTokens();
         renderVariables();
-        persistTemplate();
+        persistContent();
     });
 
     txtVariables.addEventListener('input', () => {
         variables = parseVariables(txtVariables.value);
-        persistTemplate();
+        persistContent();
     });
 
     txtVariables.addEventListener('blur', () => {
         variables = parseVariables(txtVariables.value);
         renderVariables();
-        persistTemplate();
+        persistContent();
     });
 
-    output.addEventListener('focus', () => {
-        renderOutput();
-    });
+    output.addEventListener('focus', renderOutput);
 
     templateTab.addEventListener('click', () => {
         selectTab('template');
@@ -199,17 +227,18 @@
         }
         syncTokens();
         renderVariables();
-        persistTemplate();
+        persistContent();
         selectTab('variables');
     });
 
-    window.addEventListener('beforeunload', (event) => {
-        if (!dirty) {
-            return;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            snapshot();
         }
-        event.preventDefault();
-        event.returnValue = '';
     });
+
+    window.addEventListener('pagehide', snapshot);
+    window.addEventListener('beforeunload', protectUnsavedWork);
 
     if (currentYear) {
         currentYear.textContent = new Date().getFullYear();

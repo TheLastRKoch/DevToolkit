@@ -3,93 +3,35 @@ const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { init, DEFAULT_TITLE } = require('../public/static/scripts/page-header.js');
+const { initPageHeader, isValidTitle, DEFAULT_TITLE, TITLE_PLACEHOLDER } = require('../public/static/scripts/page-header.js');
+const { createDom } = require('./helpers/mock-dom.js');
 
 const headerScriptPath = path.join(__dirname, '../public/static/scripts/page-header.js');
+const headerScript = fs.readFileSync(headerScriptPath, 'utf8');
 
-function createDom() {
-    const byId = new Map();
-    const documentListeners = {};
-
-    function createElement(tag) {
-        const classes = new Set();
-        const attributes = {};
-        const listeners = {};
-        const element = {
-            tagName: tag.toUpperCase(),
-            children: [],
-            textContent: '',
-            hidden: false,
-            value: '',
-            classList: {
-                add: (...names) => names.forEach((name) => classes.add(name)),
-                remove: (...names) => names.forEach((name) => classes.delete(name)),
-                contains: (name) => classes.has(name),
-            },
-            setAttribute: (name, value) => {
-                attributes[name] = String(value);
-                if (name === 'id') {
-                    byId.set(String(value), element);
-                }
-            },
-            getAttribute: (name) => (name in attributes ? attributes[name] : null),
-            appendChild: (child) => {
-                element.children.push(child);
-                return child;
-            },
-            addEventListener: (type, handler) => {
-                listeners[type] = listeners[type] || [];
-                listeners[type].push(handler);
-            },
-            dispatch: (type, event) => {
-                (listeners[type] || []).forEach((handler) => handler(event));
-            },
-            contains: (node) => {
-                if (node === element) {
-                    return true;
-                }
-                return element.children.some((child) => child.contains(node));
-            },
-        };
-        return element;
-    }
-
-    const mount = createElement('div');
-    mount.setAttribute('id', 'pageHeader');
-
-    const document = {
-        title: '',
-        createElement,
-        getElementById: (id) => byId.get(String(id)) || null,
-        addEventListener: (type, handler) => {
-            documentListeners[type] = documentListeners[type] || [];
-            documentListeners[type].push(handler);
-        },
-        dispatch: (type, event) => {
-            (documentListeners[type] || []).forEach((handler) => handler(event));
-        },
-    };
-
-    return { document, mount, byId, createElement };
-}
-
-function defaultConfig(dom, overrides) {
-    return Object.assign({
+function openHeader(overrides) {
+    const dom = createDom(['pageHeader']);
+    const header = initPageHeader(Object.assign({
         document: dom.document,
-        mount: dom.mount,
+        mount: dom.document.getElementById('pageHeader'),
         breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Template' }],
-        pageName: '',
+        title: '',
         options: [],
-    }, overrides || {});
+    }, overrides || {}));
+    return { dom, header, input: dom.document.getElementById('pageTitleInput') };
 }
 
-test('the header renders the breadcrumb, dropdown, and page name in one row', () => {
-    const dom = createDom();
-    init(defaultConfig(dom, {
-        options: [{ id: 'clear-all', label: 'Clear all', run: () => {} }],
-    }));
+function type(input, value) {
+    input.value = value;
+    input.dispatch('input', {});
+}
 
-    const row = dom.mount.children[0];
+test('the header renders the breadcrumb, options dropdown, and title in one row', () => {
+    const { dom } = openHeader({
+        options: [{ id: 'clear-all', label: 'Clear all', run: () => {} }],
+    });
+
+    const row = dom.document.getElementById('pageHeader').children[0];
     assert.equal(row.getAttribute('class'), 'row mt-3', 'the header is one row');
     assert.equal(row.children.length, 3, 'breadcrumb column, controls column, and status area');
 
@@ -112,124 +54,143 @@ test('the header renders the breadcrumb, dropdown, and page name in one row', ()
     assert.equal(current.textContent, 'Template');
 
     assert.match(controlsColumn.getAttribute('class'), /justify-content-end/);
-    assert.ok(dom.byId.get('pageNameInput'), 'the page name textbox is rendered');
-    assert.equal(dom.byId.get('pageNameInput').getAttribute('type'), 'text');
-    assert.ok(dom.byId.get('pageOptionsToggle'), 'the options toggle is rendered');
-    assert.equal(dom.byId.get('pageOptionsToggle').textContent, 'Options');
+    const input = dom.document.getElementById('pageTitleInput');
+    assert.equal(input.getAttribute('type'), 'text');
+    assert.equal(input.getAttribute('placeholder'), TITLE_PLACEHOLDER, 'the title textbox shows the placeholder');
+    assert.equal(dom.document.getElementById('pageOptionsToggle').textContent, 'Options');
 });
 
 test('the header renders only the options the page declares, in order', () => {
-    const dom = createDom();
-    const header = init(defaultConfig(dom, {
+    const { dom, header } = openHeader({
         options: [
-            { id: 'new-session', label: 'New session', run: () => {} },
-            { id: 'clear-editor', label: 'Clear editor', run: () => {} },
+            { id: 'clear-variables', label: 'Clear variables', run: () => {} },
+            { id: 'clear-all', label: 'Clear all', run: () => {} },
         ],
-    }));
+    });
 
-    assert.deepEqual(header.optionIds, ['new-session', 'clear-editor']);
-    const menu = dom.byId.get('pageOptionsMenu');
-    const labels = menu.children.map((item) => item.children[0].textContent);
-    assert.deepEqual(labels, ['New session', 'Clear editor']);
+    assert.deepEqual(header.optionIds, ['clear-variables', 'clear-all']);
+    const labels = dom.document.getElementById('pageOptionsMenu').children.map((item) => item.children[0].textContent);
+    assert.deepEqual(labels, ['Clear variables', 'Clear all']);
 
-    const otherDom = createDom();
-    init(defaultConfig(otherDom, {
-        options: [{ id: 'clear-variables', label: 'Clear variables', run: () => {} }],
-    }));
-    const otherLabels = otherDom.byId.get('pageOptionsMenu').children.map((item) => item.children[0].textContent);
-    assert.deepEqual(otherLabels, ['Clear variables'], 'another page lists only its own options');
+    const other = openHeader({ options: [{ id: 'clear-editor', label: 'Clear editor', run: () => {} }] });
+    const otherLabels = other.dom.document.getElementById('pageOptionsMenu').children.map((item) => item.children[0].textContent);
+    assert.deepEqual(otherLabels, ['Clear editor'], 'another page lists only its own options');
 });
 
 test('selecting an option runs its action once and closes the dropdown', () => {
-    const dom = createDom();
-    let calls = 0;
-    init(defaultConfig(dom, {
+    const { dom } = openHeader({
         options: [
-            { id: 'new-session', label: 'New session', run: () => { calls += 100; } },
+            { id: 'clear-variables', label: 'Clear variables', run: () => { throw new Error('must not run'); } },
             { id: 'clear-editor', label: 'Clear editor', run: () => { calls += 1; } },
         ],
-    }));
+    });
+    let calls = 0;
 
-    dom.byId.get('pageOptionsToggle').dispatch('click', { preventDefault: () => {} });
-    assert.equal(dom.byId.get('pageOptionsMenu').hidden, false, 'the dropdown opens');
+    dom.document.getElementById('pageOptionsToggle').dispatch('click', { preventDefault: () => {} });
+    assert.equal(dom.document.getElementById('pageOptionsMenu').hidden, false, 'the dropdown opens');
 
-    dom.byId.get('pageOptionsMenu').children[1].children[0].dispatch('click', {});
+    dom.document.getElementById('pageOptionsMenu').children[1].children[0].dispatch('click', {});
     assert.equal(calls, 1, 'only the selected option ran');
-    assert.equal(dom.byId.get('pageOptionsMenu').hidden, true, 'the dropdown closes after selection');
+    assert.equal(dom.document.getElementById('pageOptionsMenu').hidden, true, 'the dropdown closes after selection');
 });
 
 test('the header owns the dropdown toggle without Bootstrap', () => {
-    const dom = createDom();
-    const header = init(defaultConfig(dom, { options: [] }));
-    const menu = dom.byId.get('pageOptionsMenu');
-    const toggle = dom.byId.get('pageOptionsToggle');
+    const { dom, header } = openHeader({ options: [] });
+    const menu = dom.document.getElementById('pageOptionsMenu');
+    const toggle = dom.document.getElementById('pageOptionsToggle');
 
     assert.equal(menu.hidden, true, 'the dropdown starts closed');
     assert.equal(toggle.getAttribute('aria-expanded'), 'false');
 
     toggle.dispatch('click', { preventDefault: () => {} });
     assert.equal(menu.hidden, false);
-    assert.equal(menu.classList.contains('show'), true);
     assert.equal(toggle.getAttribute('aria-expanded'), 'true');
     assert.equal(header.isOpen(), true);
 
     toggle.dispatch('click', { preventDefault: () => {} });
     assert.equal(menu.hidden, true);
-    assert.equal(menu.classList.contains('show'), false);
-    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(header.isOpen(), false);
 
     toggle.dispatch('click', { preventDefault: () => {} });
     dom.document.dispatch('keydown', { key: 'Escape' });
     assert.equal(header.isOpen(), false, 'Escape closes the dropdown');
 
-    const script = fs.readFileSync(headerScriptPath, 'utf8');
-    assert.ok(!/bootstrap/i.test(script), 'the shared header must not depend on Bootstrap JS');
+    assert.ok(!/bootstrap/i.test(headerScript), 'the shared header must not depend on Bootstrap JS');
 });
 
-test('the page name textbox updates the document title', () => {
-    const dom = createDom();
+test('typing a title updates the document title and reports each edit', () => {
     const changes = [];
-    init(defaultConfig(dom, {
-        pageName: 'Release notes',
-        onPageNameChange: (value) => changes.push(value),
-    }));
+    const { dom, input } = openHeader({ title: '', onTitleChange: (value) => changes.push(value) });
 
-    const input = dom.byId.get('pageNameInput');
-    assert.equal(input.value, 'Release notes', 'the stored page name is shown');
+    assert.equal(dom.document.title, DEFAULT_TITLE, 'a page without a title keeps the default tab title');
+
+    type(input, 'Release notes');
     assert.equal(dom.document.title, 'Release notes');
+    assert.deepEqual(changes, ['Release notes']);
 
-    input.value = 'Sprint plan';
-    input.dispatch('input', {});
-    assert.equal(dom.document.title, 'Sprint plan');
-    assert.deepEqual(changes, ['Sprint plan']);
-
-    input.value = '';
-    input.dispatch('input', {});
-    assert.equal(dom.document.title, DEFAULT_TITLE, 'an empty page name falls back to the default title');
-    assert.deepEqual(changes, ['Sprint plan', '']);
+    type(input, 'Release notes v2');
+    assert.equal(dom.document.title, 'Release notes v2');
+    assert.deepEqual(changes, ['Release notes', 'Release notes v2']);
 });
 
-test('the header can rename the page and report unpersisted changes', () => {
-    const dom = createDom();
-    const header = init(defaultConfig(dom, { pageName: '' }));
-    assert.equal(dom.document.title, DEFAULT_TITLE);
+test('an empty, whitespace, or placeholder title falls back to the default', () => {
+    const { dom, input } = openHeader();
 
-    header.setPageName('Notes');
-    assert.equal(dom.byId.get('pageNameInput').value, 'Notes');
-    assert.equal(dom.document.title, 'Notes');
+    for (const value of ['', '   ', 'DevToolKit', 'devtoolkit', 'DEVTOOLKIT']) {
+        type(input, value);
+        assert.equal(dom.document.title, DEFAULT_TITLE, `"${value}" is not a title`);
+    }
 
-    header.warn('Changes will not be persisted.');
-    const status = dom.byId.get('pageHeaderStatus');
-    assert.equal(status.hidden, false);
-    assert.equal(status.textContent, 'Changes will not be persisted.');
-    header.clearWarning();
-    assert.equal(status.hidden, true);
+    type(input, 'Real title');
+    assert.equal(dom.document.title, 'Real title');
 });
 
-test('a page that reports unpersisted storage is told at load', () => {
-    const dom = createDom();
-    init(defaultConfig(dom, { persisted: false }));
-    const status = dom.byId.get('pageHeaderStatus');
+test('a stored title is restored disabled, an invalid one opens empty', () => {
+    const restored = openHeader({ title: 'Sprint plan' });
+    assert.equal(restored.input.value, 'Sprint plan');
+    assert.equal(restored.dom.document.title, 'Sprint plan');
+    assert.equal(restored.header.isTitleLocked(), true, 'the stored title is immutable');
+    assert.equal(restored.input.getAttribute('disabled'), 'true');
+
+    const invalid = openHeader({ title: 'DevToolKit' });
+    assert.equal(invalid.input.value, '', 'the placeholder is not a stored title');
+    assert.equal(invalid.dom.document.title, DEFAULT_TITLE);
+    assert.equal(invalid.header.isTitleLocked(), false);
+});
+
+test('the title becomes immutable once it is saved', () => {
+    const changes = [];
+    const { header, input, dom } = openHeader({ onTitleChange: (value) => changes.push(value) });
+
+    type(input, 'My notes');
+    header.lockTitle();
+    assert.equal(input.disabled, true);
+    assert.equal(input.getAttribute('disabled'), 'true');
+    assert.equal(header.isTitleLocked(), true);
+    assert.equal(dom.document.title, 'My notes');
+
+    type(input, 'Renamed');
+    assert.equal(header.isTitleLocked(), true, 'the locked title cannot be edited');
+    assert.deepEqual(changes, ['My notes'], 'a locked title reports no further edits');
+    assert.equal(dom.document.title, 'My notes');
+});
+
+test('the header reports unpersisted storage', () => {
+    const { dom, header } = openHeader({ persisted: false });
+    const status = dom.document.getElementById('pageHeaderStatus');
     assert.equal(status.hidden, false);
     assert.match(status.textContent, /not be persisted/);
+
+    header.clearWarning();
+    assert.equal(status.hidden, true);
+    header.warn('Changes will not be persisted.');
+    assert.equal(status.hidden, false);
+    assert.equal(status.textContent, 'Changes will not be persisted.');
+});
+
+test('title validation matches the store', () => {
+    const sessions = require('../public/static/scripts/browser-session.js');
+    for (const value of ['Notes', 'devtoolkit notes', 'Title', '', '  ', 'DevToolKit', 'DEVTOOLKIT', null]) {
+        assert.equal(isValidTitle(value), sessions.isValidTitle(value), `"${value}" is judged the same everywhere`);
+    }
 });

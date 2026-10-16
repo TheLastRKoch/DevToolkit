@@ -1,9 +1,9 @@
 /**
- * Shared page header for the DevToolkit editing pages.
+ * Shared page header for the DevToolkit pages.
  *
- * Renders one row containing the breadcrumb trail, the Options dropdown, and the
- * page-name textbox. Each page includes this script, mounts it once, and declares
- * only its own breadcrumb items, its own options, and its own page name.
+ * Renders one row containing the breadcrumb trail, the title textbox, and the
+ * Options dropdown. Each page includes this script, mounts it once, and declares
+ * only its own breadcrumb items, its own options, and its own title.
  *
  * Loaded as a classic script in the browser (global `DevToolkitPageHeader`) and
  * exported for Node tests.
@@ -18,7 +18,10 @@
     }
 }(typeof globalThis === 'object' ? globalThis : this, function () {
     const DEFAULT_TITLE = 'Devtoolkit';
+    const TITLE_PLACEHOLDER = 'DevToolKit';
+    const PLACEHOLDER_PATTERN = /^devtoolkit$/i;
     const MOUNT_ID = 'pageHeader';
+    const TITLE_INPUT_ID = 'pageTitleInput';
 
     function create(doc, tag, attributes, text) {
         const node = doc.createElement(tag);
@@ -34,6 +37,18 @@
             node.textContent = text;
         }
         return node;
+    }
+
+    /**
+     * A title is valid when it is non-empty, not whitespace only, and not the
+     * default placeholder ("DevToolKit", matched case-insensitively).
+     */
+    function isValidTitle(value) {
+        if (typeof value !== 'string') {
+            return false;
+        }
+        const trimmed = value.trim();
+        return trimmed !== '' && !PLACEHOLDER_PATTERN.test(trimmed);
     }
 
     function renderBreadcrumb(doc, items) {
@@ -62,7 +77,7 @@
         return doc.getElementById(typeof mount === 'string' ? mount : MOUNT_ID);
     }
 
-    function init(config) {
+    function initPageHeader(config) {
         const settings = config || {};
         const doc = settings.document || (typeof document === 'object' && document !== null ? document : null);
         if (!doc) {
@@ -73,8 +88,10 @@
             throw new Error(`The page header requires a mount element (${MOUNT_ID})`);
         }
 
-        const onPageNameChange = typeof settings.onPageNameChange === 'function' ? settings.onPageNameChange : null;
+        const onTitleChange = typeof settings.onTitleChange === 'function' ? settings.onTitleChange : null;
         const options = Array.isArray(settings.options) ? settings.options : [];
+        const initialTitle = typeof settings.title === 'string' ? settings.title : '';
+        let locked = false;
 
         const row = create(doc, 'div', { class: 'row mt-3', 'data-page-header': '' });
         const breadcrumbColumn = create(doc, 'div', { class: 'col-md-6' });
@@ -84,12 +101,12 @@
 
         breadcrumbColumn.appendChild(renderBreadcrumb(doc, settings.breadcrumb));
 
-        const nameInput = create(doc, 'input', {
-            id: 'pageNameInput',
+        const titleInput = create(doc, 'input', {
+            id: TITLE_INPUT_ID,
             class: 'form-control form-control-sm w-auto',
             type: 'text',
-            placeholder: 'Page name',
-            'aria-label': 'Page name',
+            placeholder: TITLE_PLACEHOLDER,
+            'aria-label': 'Title',
         });
 
         const dropdown = create(doc, 'div', { class: 'dropdown' });
@@ -139,7 +156,7 @@
 
         dropdown.appendChild(toggle);
         dropdown.appendChild(menu);
-        controlsColumn.appendChild(nameInput);
+        controlsColumn.appendChild(titleInput);
         controlsColumn.appendChild(dropdown);
         row.appendChild(breadcrumbColumn);
         row.appendChild(controlsColumn);
@@ -156,14 +173,27 @@
 
         mount.appendChild(row);
 
-        function applyTitle(name) {
-            doc.title = name ? name : DEFAULT_TITLE;
+        function applyDocumentTitle(value) {
+            doc.title = isValidTitle(value) ? value.trim() : DEFAULT_TITLE;
         }
 
-        function setPageName(name) {
-            const value = typeof name === 'string' ? name : '';
-            nameInput.value = value;
-            applyTitle(value);
+        /** Once saved, the title is read-only for the lifetime of the session. */
+        function lockTitle() {
+            locked = true;
+            titleInput.value = titleInput.value.trim();
+            titleInput.disabled = true;
+            titleInput.setAttribute('disabled', 'true');
+            applyDocumentTitle(titleInput.value);
+        }
+
+        function setTitle(value) {
+            const title = typeof value === 'string' ? value : '';
+            titleInput.value = title;
+            if (isValidTitle(title)) {
+                lockTitle();
+            } else {
+                applyDocumentTitle('');
+            }
         }
 
         function warn(message) {
@@ -176,11 +206,14 @@
             status.hidden = true;
         }
 
-        nameInput.addEventListener('input', () => {
-            const value = nameInput.value || '';
-            applyTitle(value);
-            if (onPageNameChange) {
-                onPageNameChange(value);
+        titleInput.addEventListener('input', () => {
+            const value = titleInput.value || '';
+            if (locked) {
+                return;
+            }
+            applyDocumentTitle(value);
+            if (onTitleChange) {
+                onTitleChange(value);
             }
         });
 
@@ -208,14 +241,21 @@
             });
         }
 
-        setPageName(settings.pageName);
+        if (isValidTitle(initialTitle)) {
+            setTitle(initialTitle);
+        } else {
+            titleInput.value = '';
+            applyDocumentTitle('');
+        }
 
         if (settings.persisted === false) {
             warn('Changes on this page will not be persisted in this browser.');
         }
 
         return {
-            setPageName,
+            setTitle,
+            lockTitle,
+            isTitleLocked: () => locked,
             warn,
             clearWarning,
             isOpen: () => !menu.hidden,
@@ -225,5 +265,12 @@
         };
     }
 
-    return { init, DEFAULT_TITLE, MOUNT_ID };
+    return {
+        initPageHeader,
+        isValidTitle,
+        DEFAULT_TITLE,
+        TITLE_PLACEHOLDER,
+        TITLE_INPUT_ID,
+        MOUNT_ID,
+    };
 }));

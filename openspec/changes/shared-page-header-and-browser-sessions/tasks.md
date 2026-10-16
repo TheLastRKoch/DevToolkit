@@ -8,12 +8,12 @@
   shaped `{ title, kind, versions }` (single session per page); verify with
   `node -e "const s=require('./public/static/scripts/browser-session.js')"` that
   the module loads in Node and exports the factory
-- [ ] 1.2 Implement title validation: reject empty, whitespace-only, and
+- [x] 1.2 Implement title validation: reject empty, whitespace-only, and
   default placeholder values (case-insensitive match against "DevToolKit" /
   "Devtoolkit"); implement conditional persistence so `save` only writes to
   `localStorage` when a valid title is provided; verify with tests asserting
   untitled sessions are not persisted and titled sessions are
-- [ ] 1.3 Implement FIFO versioning: `versions` array keeps the last 3 content
+- [x] 1.3 Implement FIFO versioning: `versions` array keeps the last 3 content
   snapshots; a new version is pushed only when content differs from the most
   recent version (excluding `updatedDate`); when a 4th version would be added,
   the oldest is dropped; verify with tests covering version creation,
@@ -22,10 +22,10 @@
   throws: keep the session in memory for the current page view and signal that
   changes were not persisted; verify with tests using a missing storage object
   and a storage whose `setItem` throws
-- [ ] 1.5 Implement `listAll(storage)` that reads all `devtoolkit:sessions:*`
+- [x] 1.5 Implement `listAll(storage)` that reads all `devtoolkit:sessions:*`
   keys from storage and returns an array of `{ kind, title, latestDate }` for
   gallery consumption; verify with tests
-- [ ] 1.6 Update `test/browser-sessions.test.js` with a fake storage object
+- [x] 1.6 Update `test/browser-sessions.test.js` with a fake storage object
   covering 1.1–1.5 (title validation, conditional persistence, versioning,
   FIFO, deduplication, listAll, write failure); verify `npm test` passes
 
@@ -44,7 +44,7 @@
   Bootstrap's JS bundle; verify with a test asserting the toggle opens and closes
   the menu and with a page-HTML check that `/template` and `/text-editor` no
   longer need `bootstrap.bundle` for the menu to work
-- [ ] 2.4 Implement the title textbox with placeholder "DevToolKit": typing
+- [x] 2.4 Implement the title textbox with placeholder "DevToolKit": typing
   updates `document.title`, an empty or default-matching value falls back to
   `Devtoolkit`, the stored title is shown when the page loads, and
   `onTitleChange` receives each edit; implement title immutability by setting
@@ -62,14 +62,14 @@
   `<title>` and remove the page-level breadcrumb and dropdown markup it will no
   longer own; verify the old file is gone, the new file exists, and the page
   contains no `Editor` breadcrumb label
-- [ ] 3.2 Update the `/text-editor` route in `server.js` to serve the page
+- [x] 3.2 Update the `/text-editor` route in `server.js` to serve the page
   directly (no session ID routes), and keep `/editor` as a redirect to
   `/text-editor`; verify with `test/routes.test.js` cases asserting the page
   resolves with status 200 and the redirect target
 - [x] 3.3 Update `public/index.html` so the entry reads `Text Editor` and links to
   `/text-editor`; verify a route test asserts the home page contains `Text Editor`
   and no `/editor` link
-- [ ] 3.4 Remove session-ID route cases from `test/routes.test.js` (no more
+- [x] 3.4 Remove session-ID route cases from `test/routes.test.js` (no more
   `/text-editor/:sessionId`); verify `npm test` passes with the simplified routes
 
 ## 4. Template page adopts the shared header and browser session
@@ -78,14 +78,14 @@
   `initPageHeader` call declaring Clear variables and Clear all; verify
   `public/template.html` contains no breadcrumb, title input, or session button
   markup of its own and a test asserts the declared option labels
-- [ ] 4.2 Wire the template actions into the header options (Clear variables, Clear
+- [x] 4.2 Wire the template actions into the header options (Clear variables, Clear
   all — no "New session"); verify a test asserts each option runs its action
-- [ ] 4.3 Point template title, template text, and variables at the browser store
+- [x] 4.3 Point template title, template text, and variables at the browser store
   under `devtoolkit:sessions:template` with conditional persistence (title-gated)
   and FIFO versioning; each version stores `{ updatedDate, content, variables }`;
   verify a round-trip test covers template text, variable values, and title, and
   that page scripts contain no remaining fetch calls to `/api/`
-- [ ] 4.4 Implement visibility-change / page-unload version snapshot for the
+- [x] 4.4 Implement visibility-change / page-unload version snapshot for the
   template page: compare current content and variables to the latest version and
   save if changed; implement `beforeunload` only for untitled sessions with
   modified content; verify with tests
@@ -95,19 +95,19 @@
 
 ## 5. Markdown editor adopts the shared header and browser session
 
-- [ ] 5.1 Update the `/markdown-editor` route to serve the page directly (no
+- [x] 5.1 Update the `/markdown-editor` route to serve the page directly (no
   session ID routes); verify with route tests asserting the page resolves with
   status 200
 - [x] 5.2 Adopt the shared header on `public/markdown-editor.html` with Clear
   editor; verify the page contains the mount, no duplicated breadcrumb, and that
   the existing `test/markdown-editor.test.js` layout and pane assertions still
   pass
-- [ ] 5.3 Persist markdown text and title in the browser store under
+- [x] 5.3 Persist markdown text and title in the browser store under
   `devtoolkit:sessions:markdown-editor` with conditional persistence (title-gated)
   and FIFO versioning; each version stores `{ updatedDate, content }`; restore
   both on load and implement Clear editor as content-only clearing; verify a
   round-trip test covers markdown text and title
-- [ ] 5.4 Implement visibility-change / page-unload version snapshot for the
+- [x] 5.4 Implement visibility-change / page-unload version snapshot for the
   markdown editor: compare current content to the latest version and save if
   changed; implement `beforeunload` only for untitled sessions; verify with tests
 - [x] 5.5 Document the markdown editor's options and session behavior in
@@ -121,12 +121,12 @@
   `public/static/scripts/text-editor.js`; verify the page contains the mount, no
   duplicated breadcrumb, and a test asserts the declared option labels with no
   variable-related item
-- [ ] 6.2 Persist the editor content and title in the browser store under
+- [x] 6.2 Persist the editor content and title in the browser store under
   `devtoolkit:sessions:text-editor` with conditional persistence (title-gated)
   and FIFO versioning; each version stores `{ updatedDate, content }`; restore
   content on load and treat stored content as untrusted input when importing it
   into the editor; verify a round-trip test covers content and title
-- [ ] 6.3 Implement visibility-change / page-unload version snapshot for the
+- [x] 6.3 Implement visibility-change / page-unload version snapshot for the
   text editor: compare current content to the latest version and save if changed;
   implement `beforeunload` only for untitled sessions; implement Clear editor as
   content-only clearing and keep the title; verify with tests
@@ -136,36 +136,36 @@
 
 ## 7. Home page session gallery
 
-- [ ] 7.1 Update `public/static/scripts/gallery.js` to read all
+- [x] 7.1 Update `public/static/scripts/gallery.js` to read all
   `devtoolkit:sessions:*` keys from `localStorage` instead of static piece data;
   render each saved session as a card with the session's title in `<h2>` and
   `kind · latestDate` in `<p>`
-- [ ] 7.2 Replace the category filter buttons with session-kind filter buttons
+- [x] 7.2 Replace the category filter buttons with session-kind filter buttons
   (one per kind: `text-editor`, `markdown-editor`, `template`, plus "All");
   implement search filtering by title text
-- [ ] 7.3 Implement session delete: clicking the remove button (×) on a card
+- [x] 7.3 Implement session delete: clicking the remove button (×) on a card
   calls `localStorage.removeItem` for that session's key and removes the card
   from the gallery; verify the session is removed from storage
-- [ ] 7.4 Show the empty state when no saved sessions exist in `localStorage`;
+- [x] 7.4 Show the empty state when no saved sessions exist in `localStorage`;
   verify the empty state is displayed and hides when a session is added
 
 ## 8. Integration verification
 
-- [ ] 8.1 Verify all three pages render the same header row with their own options
+- [x] 8.1 Verify all three pages render the same header row with their own options
   by asserting the header mount and declared option sets for `/template`,
   `/text-editor`, and `/markdown-editor` in one integration test
-- [ ] 8.2 Verify conditional persistence end to end: one test covers providing a
+- [x] 8.2 Verify conditional persistence end to end: one test covers providing a
   valid title enabling persistence, an invalid title preventing persistence, and
   title immutability after save
-- [ ] 8.3 Verify FIFO versioning end to end: one test covers version creation on
+- [x] 8.3 Verify FIFO versioning end to end: one test covers version creation on
   visibility change, deduplication of unchanged content, and FIFO truncation at 3
   versions
-- [ ] 8.4 Verify the home page gallery reads saved sessions from `localStorage`,
+- [x] 8.4 Verify the home page gallery reads saved sessions from `localStorage`,
   renders cards with title/kind/date, filters by kind, and deletes on remove
-- [ ] 8.5 Verify the legacy and kept URLs (`/editor`, `/template`,
+- [x] 8.5 Verify the legacy and kept URLs (`/editor`, `/template`,
   `/markdown-editor`) still resolve and that the untouched `/api/template/*`
   behavior still passes its existing tests
-- [ ] 8.6 Run the full suite with `npm test` and confirm every test passes, and
+- [x] 8.6 Run the full suite with `npm test` and confirm every test passes, and
   confirm no page, test, or document still presents the page as `Editor`
 
 ## Workflow follow-up

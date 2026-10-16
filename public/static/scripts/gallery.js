@@ -1,112 +1,216 @@
-import { CATEGORIES, PIECES } from './gallery-data.js';
+/**
+ * Home page session gallery – DevToolkit
+ *
+ * Reads every session saved in `localStorage` under `devtoolkit:sessions:<kind>`
+ * and renders one card per session, with kind filters, title search, per-session
+ * delete, and an empty state when nothing is saved.
+ *
+ * Loaded as a classic script in the browser (global `DevToolkitGallery`) and
+ * exported for Node tests.
+ */
+(function (root, factory) {
+    const api = factory();
+    if (typeof module === 'object' && module.exports) {
+        module.exports = api;
+    }
+    if (root) {
+        root.DevToolkitGallery = api;
+    }
+}(typeof globalThis === 'object' ? globalThis : this, function () {
+    const STORAGE_PREFIX = 'devtoolkit:sessions:';
+    const KINDS = ['text-editor', 'markdown-editor', 'template'];
+    const ALL_KINDS = 'All';
 
-const state = {
-  category: 'All',
-  query: '',
-  removed: new Set(),
-};
+    function create(doc, tag, attributes, text) {
+        const node = doc.createElement(tag);
+        if (attributes) {
+            for (const [name, value] of Object.entries(attributes)) {
+                if (value === undefined || value === null) {
+                    continue;
+                }
+                node.setAttribute(name, String(value));
+            }
+        }
+        if (text !== undefined) {
+            node.textContent = text;
+        }
+        return node;
+    }
 
-const $ = (id) => document.getElementById(id);
+    /** The saved date is shown as the calendar day of the ISO timestamp. */
+    function formatDate(value) {
+        return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : '';
+    }
 
-const els = {
-  filters: $('filters'),
-  search: $('search'),
-  gallery: $('gallery'),
-  resultCount: $('resultCount'),
-  emptyState: $('emptyState'),
-  resetFilters: $('resetFilters'),
-};
+    function resolveSessions(settings) {
+        if (settings.sessions) {
+            return settings.sessions;
+        }
+        return typeof DevToolkitSessions === 'object' && DevToolkitSessions !== null ? DevToolkitSessions : null;
+    }
 
-const currentYearEl = $('currentYear');
-if (currentYearEl) {
-  currentYearEl.textContent = new Date().getFullYear();
-}
+    function init(config) {
+        const settings = config || {};
+        const doc = settings.document || (typeof document === 'object' && document !== null ? document : null);
+        if (!doc) {
+            return null;
+        }
+        const sessions = resolveSessions(settings);
+        const storage = settings.storage !== undefined
+            ? settings.storage
+            : (sessions ? sessions.browserStorage() : null);
 
-function getVisiblePieces() {
-  const query = state.query.trim().toLowerCase();
-  return PIECES.filter((piece) => {
-    if (state.removed.has(piece.id)) return false;
-    if (state.category !== 'All' && piece.category !== state.category) return false;
-    if (!query) return true;
-    return [piece.title, piece.glaze, piece.clay, piece.category].some((field) =>
-      field.toLowerCase().includes(query)
-    );
-  });
-}
+        const els = {
+            filters: doc.getElementById('filters'),
+            search: doc.getElementById('search'),
+            gallery: doc.getElementById('gallery'),
+            resultCount: doc.getElementById('resultCount'),
+            emptyState: doc.getElementById('emptyState'),
+            resetFilters: doc.getElementById('resetFilters'),
+            currentYear: doc.getElementById('currentYear'),
+        };
+        if (!els.filters || !els.gallery || !els.emptyState) {
+            return null;
+        }
 
-function renderFilters() {
-  els.filters.innerHTML = CATEGORIES.map((category) => {
-    const active = category === state.category;
-    return `<button type="button" class="btn btn-sm rounded-pill ${active ? 'btn-primary' : 'btn-outline-secondary'}"
-      data-category="${category}" aria-pressed="${active}">${category}</button>`;
-  }).join('');
-}
+        const state = { kind: ALL_KINDS, query: '' };
 
-function createCard(piece) {
-  const col = document.createElement('div');
-  col.className = 'col';
-  col.innerHTML = `
-    <article class="card piece-card h-100">
-      <div class="position-relative">
-        <img src="${piece.image}" alt="${piece.title}, ${piece.glaze} glaze" class="card-img-top img-thumbnail" loading="lazy" />
-        <button type="button"
-          class="btn btn-sm btn-danger position-absolute top-0 end-0 m-2 remove-btn"
-          data-remove="${piece.id}" aria-label="Remove ${piece.title}">
-          &times;
-        </button>
-      </div>
-      <div class="card-body">
-        <h2 class="h6 fw-semibold mb-1">${piece.title}</h2>
-        <p class="small text-body-secondary mb-0">${piece.category} &middot; ${piece.glaze}</p>
-      </div>
-    </article>`;
-  return col;
-}
+        if (els.currentYear) {
+            els.currentYear.textContent = String(new Date().getFullYear());
+        }
 
-function renderGallery() {
-  const visible = getVisiblePieces();
-  const fragment = document.createDocumentFragment();
-  visible.forEach((piece) => fragment.appendChild(createCard(piece)));
-  els.gallery.replaceChildren(fragment);
+        function listSessions() {
+            if (!sessions || typeof sessions.listAll !== 'function') {
+                return [];
+            }
+            try {
+                return sessions.listAll(storage);
+            } catch (error) {
+                return [];
+            }
+        }
 
-  const count = visible.length;
-  els.resultCount.textContent = `${count} ${count === 1 ? 'piece' : 'pieces'}`;
-  els.emptyState.classList.toggle('d-none', count > 0);
-  els.gallery.classList.toggle('d-none', count === 0);
-}
+        function visibleSessions(all) {
+            const query = state.query.trim().toLowerCase();
+            return all.filter((session) => {
+                if (state.kind !== ALL_KINDS && session.kind !== state.kind) {
+                    return false;
+                }
+                if (!query) {
+                    return true;
+                }
+                return session.title.toLowerCase().includes(query);
+            });
+        }
 
-function removePiece(id) {
-  state.removed.add(id);
-  renderGallery();
-}
+        function renderFilters() {
+            const buttons = [ALL_KINDS].concat(KINDS).map((kind) => {
+                const active = kind === state.kind;
+                return create(doc, 'button', {
+                    type: 'button',
+                    class: `btn btn-sm rounded-pill ${active ? 'btn-primary' : 'btn-outline-secondary'}`,
+                    'data-kind': kind,
+                    'aria-pressed': String(active),
+                }, kind);
+            });
+            els.filters.replaceChildren(...buttons);
+        }
 
-els.filters.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-category]');
-  if (!button) return;
-  state.category = button.dataset.category;
-  renderFilters();
-  renderGallery();
-});
+        function createCard(session) {
+            const column = create(doc, 'div', { class: 'col' });
+            const card = create(doc, 'article', { class: 'card session-card h-100', 'data-kind': session.kind });
+            const body = create(doc, 'div', {
+                class: 'card-body d-flex justify-content-between align-items-start gap-2',
+            });
+            const text = create(doc, 'div', {});
+            text.appendChild(create(doc, 'h2', { class: 'h6 fw-semibold mb-1' }, session.title));
+            const date = formatDate(session.latestDate);
+            text.appendChild(create(doc, 'p', { class: 'small text-body-secondary mb-0' }, date ? `${session.kind} · ${date}` : session.kind));
 
-els.search.addEventListener('input', (event) => {
-  state.query = event.target.value;
-  renderGallery();
-});
+            const remove = create(doc, 'button', {
+                type: 'button',
+                class: 'btn btn-sm btn-danger remove-btn',
+                'data-remove': session.kind,
+                'aria-label': `Remove ${session.title}`,
+            }, '\u00d7');
 
-els.resetFilters.addEventListener('click', () => {
-  Object.assign(state, { category: 'All', query: '' });
-  state.removed.clear();
-  els.search.value = '';
-  renderFilters();
-  renderGallery();
-});
+            body.appendChild(text);
+            body.appendChild(remove);
+            card.appendChild(body);
+            column.appendChild(card);
+            return column;
+        }
 
-els.gallery.addEventListener('click', (event) => {
-  const removeButton = event.target.closest('[data-remove]');
-  if (removeButton) {
-    removePiece(removeButton.dataset.remove);
-  }
-});
+        function renderGallery() {
+            const all = listSessions();
+            const visible = visibleSessions(all);
+            els.gallery.replaceChildren(...visible.map(createCard));
 
-renderFilters();
-renderGallery();
+            if (els.resultCount) {
+                els.resultCount.textContent = `${visible.length} ${visible.length === 1 ? 'session' : 'sessions'}`;
+            }
+            const empty = visible.length === 0;
+            els.emptyState.classList.toggle('d-none', !empty);
+            els.gallery.classList.toggle('d-none', empty);
+        }
+
+        /** Removes the session from storage and from the gallery. */
+        function removeSession(kind) {
+            if (storage && typeof storage.removeItem === 'function') {
+                storage.removeItem(STORAGE_PREFIX + kind);
+            }
+            renderGallery();
+        }
+
+        els.filters.addEventListener('click', (event) => {
+            const button = event && typeof event.target.closest === 'function'
+                ? event.target.closest('[data-kind]')
+                : null;
+            if (!button) {
+                return;
+            }
+            state.kind = button.getAttribute('data-kind');
+            renderFilters();
+            renderGallery();
+        });
+
+        if (els.search) {
+            els.search.addEventListener('input', (event) => {
+                state.query = (event && event.target ? event.target.value : els.search.value) || '';
+                renderGallery();
+            });
+        }
+
+        if (els.resetFilters) {
+            els.resetFilters.addEventListener('click', () => {
+                state.kind = ALL_KINDS;
+                state.query = '';
+                if (els.search) {
+                    els.search.value = '';
+                }
+                renderFilters();
+                renderGallery();
+            });
+        }
+
+        els.gallery.addEventListener('click', (event) => {
+            const button = event && typeof event.target.closest === 'function'
+                ? event.target.closest('[data-remove]')
+                : null;
+            if (button) {
+                removeSession(button.getAttribute('data-remove'));
+            }
+        });
+
+        renderFilters();
+        renderGallery();
+
+        return { removeSession, state, renderGallery };
+    }
+
+    if (typeof document === 'object' && document !== null && typeof document.getElementById === 'function') {
+        init();
+    }
+
+    return { init, formatDate, KINDS, STORAGE_PREFIX };
+}));

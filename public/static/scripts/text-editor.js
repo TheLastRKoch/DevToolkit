@@ -3,18 +3,13 @@
  *
  * Handles:
  *  - Quill rich-text editing surface
- *  - Browser-stored session content and page name
- *  - The shared page header (breadcrumb, options, page name)
+ *  - Browser-stored session content and title
+ *  - The shared page header (breadcrumb, options, title)
  */
 
 'use strict';
 
 (function () {
-    const sessionId = window.location.pathname.match(/^\/text-editor\/([1-9][0-9]*)$/)?.[1];
-    if (!sessionId) {
-        return;
-    }
-
     const currentYearEl = document.getElementById('currentYear');
 
     let header = null;
@@ -27,7 +22,8 @@
             }
         },
     });
-    const session = store.ensure(sessionId, { html: '' });
+    const session = store.get();
+    const stored = store.content();
 
     const quill = new Quill('#txtOutput', {
         modules: {
@@ -39,12 +35,6 @@
         placeholder: '',
         theme: 'snow',
     });
-
-    function persist(patch) {
-        dirty = true;
-        store.save(sessionId, patch);
-        dirty = !store.isPersisted();
-    }
 
     function currentHtml() {
         return quill.root.innerHTML;
@@ -63,43 +53,81 @@
         quill.setContents(quill.clipboard.convert({ html }), 'silent');
     }
 
+    /** Stages the edited content in the session; a titled session writes through. */
+    function persistContent(html) {
+        dirty = true;
+        store.save({ content: html });
+    }
+
+    /** Records the current content as a version when it changed. */
+    function snapshot() {
+        if (store.isTitled()) {
+            store.snapshot();
+        }
+    }
+
+    function onTitleChange(value) {
+        dirty = true;
+        store.save({ title: value });
+        if (!store.isTitled()) {
+            return;
+        }
+        snapshot();
+        if (store.isPersisted()) {
+            header.lockTitle();
+        }
+    }
+
+    function protectUnsavedWork(event) {
+        if (store.isTitled()) {
+            snapshot();
+            if (store.isPersisted()) {
+                return;
+            }
+        } else if (!dirty) {
+            return;
+        }
+        if (event) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    }
+
+    /** Clear editor empties the content only; the title stays. */
     function clearEditor() {
         quill.setContents(emptyContents(), 'silent');
-        persist({ data: { html: '' } });
+        persistContent('');
+        dirty = false;
     }
 
-    function newSession() {
-        window.open(`/text-editor/${store.allocateId()}`, '_blank', 'noopener');
-    }
-
-    header = DevToolkitPageHeader.init({
+    header = DevToolkitPageHeader.initPageHeader({
         mount: document.getElementById('pageHeader'),
         breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Text Editor' }],
-        pageName: session.name,
+        title: session.title,
         persisted: store.isPersisted(),
-        onPageNameChange: (name) => persist({ name }),
+        onTitleChange,
         options: [
-            { id: 'new-session', label: 'New session', run: newSession },
             { id: 'clear-editor', label: 'Clear editor', run: clearEditor },
         ],
     });
 
-    restore(session.data.html);
+    restore(stored.content);
 
     quill.on('text-change', (delta, oldDelta, source) => {
         if (source !== 'user') {
             return;
         }
-        persist({ data: { html: currentHtml() } });
+        persistContent(currentHtml());
     });
 
-    window.addEventListener('beforeunload', (event) => {
-        if (!dirty) {
-            return;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            snapshot();
         }
-        event.preventDefault();
-        event.returnValue = '';
     });
+
+    window.addEventListener('pagehide', snapshot);
+    window.addEventListener('beforeunload', protectUnsavedWork);
 
     if (currentYearEl) {
         currentYearEl.textContent = new Date().getFullYear();

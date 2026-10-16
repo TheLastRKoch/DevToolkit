@@ -3,13 +3,15 @@ const test = require('node:test');
 
 const {
     openStore,
+    listAll,
     memoryStorage,
-    DEFAULT_NAME,
-    EXPIRY_MS,
+    isValidTitle,
+    sessionKey,
+    MAX_VERSIONS,
     STORAGE_PREFIX,
 } = require('../public/static/scripts/browser-session.js');
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
 
 function fakeClock(start) {
     let current = start;
@@ -21,183 +23,262 @@ function fakeClock(start) {
     };
 }
 
-function storedDocument(storage, pageType) {
-    return JSON.parse(storage.getItem(`${STORAGE_PREFIX}${pageType}`));
+/** A localStorage stand-in that records every write, like a browser would. */
+function recordingStorage() {
+    const values = new Map();
+    const writes = [];
+    return {
+        writes,
+        get length() {
+            return values.size;
+        },
+        key: (index) => Array.from(values.keys())[index] ?? null,
+        getItem: (key) => (values.has(String(key)) ? values.get(String(key)) : null),
+        setItem(key, value) {
+            writes.push(String(key));
+            values.set(String(key), String(value));
+        },
+        removeItem: (key) => {
+            values.delete(String(key));
+        },
+    };
 }
 
-test('a new session starts as an empty default session', () => {
-    const store = openStore('template', memoryStorage());
-    const session = store.ensure(1, { text: '', variables: {} });
-    assert.equal(session.name, DEFAULT_NAME);
-    assert.deepEqual(session.data, { text: '', variables: {} });
-    assert.equal(session.expiresAt - session.updatedAt, EXPIRY_MS);
-    assert.equal(store.get(1).name, DEFAULT_NAME);
+function storedDocument(storage, kind) {
+    return JSON.parse(storage.getItem(sessionKey(kind)));
+}
+
+test('the module loads in Node and exports the store factory', () => {
+    assert.equal(typeof openStore, 'function');
+    assert.equal(typeof listAll, 'function');
+    assert.equal(sessionKey('template'), `${STORAGE_PREFIX}template`);
 });
 
-test('invalid session identifiers are rejected', () => {
-    const store = openStore('template', memoryStorage());
-    assert.equal(store.get('abc'), null);
-    assert.equal(store.ensure('abc'), null);
-    assert.equal(store.save('0', { name: 'nope' }), null);
-    assert.equal(store.get('-1'), null);
+test('an untitled session is never written to storage', () => {
+    const storage = recordingStorage();
+    const store = openStore('template', storage);
+
+    store.save({ content: 'Hello @[name]', variables: { name: 'Ada' } });
+    assert.equal(storage.getItem(sessionKey('template')), null, 'nothing is persisted while untitled');
+    assert.equal(store.isTitled(), false);
+    assert.equal(store.content().content, 'Hello @[name]', 'the content stays in the page view');
+
+    assert.deepEqual(store.save({ title: '' }), { titled: false, persisted: false, title: '' });
+    store.save({ title: 'DevToolKit' });
+    assert.equal(store.isTitled(), false, 'the default placeholder is not a title');
+    store.save({ title: '   ' });
+    assert.equal(store.isTitled(), false, 'whitespace is not a title');
+    assert.equal(storage.getItem(sessionKey('template')), null);
 });
 
-test('saved state is read back by a store created later', () => {
-    const storage = memoryStorage();
-    const first = openStore('template', storage);
-    first.ensure(1, { text: '', variables: {} });
-    first.save(1, { name: 'Release notes', data: { text: 'Hi @[name]', variables: { name: 'Ada' } } });
+test('a valid title enables conditional persistence', () => {
+    const storage = recordingStorage();
+    const store = openStore('template', storage);
 
-    const reopened = openStore('template', storage);
-    const session = reopened.get(1);
-    assert.equal(session.name, 'Release notes');
-    assert.deepEqual(session.data, { text: 'Hi @[name]', variables: { name: 'Ada' } });
+    const saved = store.save({ title: 'Release notes', content: 'Hello', variables: { name: 'Ada' } });
+    assert.deepEqual(saved, { titled: true, persisted: true, title: 'Release notes' });
+    assert.deepEqual(storedDocument(storage, 'template'), {
+        title: 'Release notes',
+        kind: 'template',
+        versions: [],
+    });
+
+    const trailing = store.save({ title: '  Sprint plan  ' });
+    assert.equal(trailing.title, 'Sprint plan', 'a valid title is stored trimmed');
 });
 
-test('pages and sessions keep their state isolated', () => {
-    const storage = memoryStorage();
+test('title validation matches the spec', () => {
+    for (const valid of ['My Project Notes', 'devtoolkit notes', 'A']) {
+        assert.equal(isValidTitle(valid), true, `${valid} should be valid`);
+    }
+    for (const invalid of ['', '   ', 'DevToolKit', 'devtoolkit', 'DEVTOOLKIT', null, undefined, 42]) {
+        assert.equal(isValidTitle(invalid), false, `${invalid} should be invalid`);
+    }
+});
+
+test('versions are created on demand, deduplicated, and truncated at three', () => {
+    const storage = recordingStorage();
+    const clock = fakeClock(Date.UTC(2026, 9, 16, 12, 0, 0));
+    const store = openStore('markdown-editor', storage, { now: clock.now });
+    store.save({ title: 'Notes' });
+
+    store.save({ content: 'v1' });
+    assert.equal(store.snapshot(), true, 'the first snapshot records the staged content');
+    assert.equal(store.get().versions.length, 1);
+    assert.equal(store.get().versions[0].updatedDate, '2026-10-16T12:00:00.000Z');
+
+    store.save({ content: 'v1' });
+    assert.equal(store.snapshot(), false, 'unchanged content is not snapshotted again');
+    assert.equal(storedDocument(storage, 'markdown-editor').versions.length, 1);
+
+    for (const content of ['v2', 'v3', 'v4']) {
+        clock.advance(MINUTE_MS);
+        store.save({ content });
+        assert.equal(store.snapshot(), true);
+    }
+    const versions = store.get().versions;
+    assert.equal(versions.length, MAX_VERSIONS, 'only the last three versions are kept');
+    assert.deepEqual(versions.map((version) => version.content), ['v2', 'v3', 'v4']);
+    assert.deepEqual(versions.map((version) => version.content), storedDocument(storage, 'markdown-editor').versions.map((version) => version.content));
+});
+
+test('an untitled session never snapshots and starts again untitled', () => {
+    const storage = recordingStorage();
+    const store = openStore('text-editor', storage);
+    store.save({ content: '<p>draft</p>' });
+    assert.equal(store.snapshot(), false, 'untitled work is not versioned');
+    assert.equal(storage.getItem(sessionKey('text-editor')), null);
+    assert.deepEqual(store.get(), { title: '', kind: 'text-editor', versions: [] });
+});
+
+test('template versions carry variables and compare them for deduplication', () => {
+    const storage = recordingStorage();
+    const store = openStore('template', storage, { now: () => 0 });
+    store.save({ title: 'Invoice', content: 'Hello @[name]', variables: { name: 'Ada' } });
+    store.snapshot();
+
+    store.save({ content: 'Hello @[name]', variables: { name: 'Grace' } });
+    assert.equal(store.snapshot(), true, 'a changed variable is a new version');
+    assert.deepEqual(store.get().versions[1].variables, { name: 'Grace' });
+
+    store.save({ content: 'Hello @[name]', variables: { name: 'Grace' } });
+    assert.equal(store.snapshot(), false, 'identical variables and content are not duplicated');
+    assert.equal(store.get().versions.length, 2);
+});
+
+test('a titled session is read back by a store created later', () => {
+    const storage = recordingStorage();
+    const first = openStore('markdown-editor', storage);
+    first.save({ title: 'Scratch pad', content: '# Body' });
+    first.snapshot();
+
+    const reopened = openStore('markdown-editor', storage);
+    assert.equal(reopened.isTitled(), true);
+    assert.equal(reopened.getTitle(), 'Scratch pad');
+    assert.equal(reopened.content().content, '# Body', 'the stored content is restored');
+    assert.equal(reopened.get().kind, 'markdown-editor');
+});
+
+test('each page type keeps its own session', () => {
+    const storage = recordingStorage();
     const template = openStore('template', storage);
     const textEditor = openStore('text-editor', storage);
     const markdown = openStore('markdown-editor', storage);
 
-    template.ensure(1, { text: '', variables: {} });
-    textEditor.ensure(1, { html: '' });
-    markdown.ensure(1, { markdown: '' });
+    template.save({ title: 'Template one', content: 'template body', variables: {} });
+    textEditor.save({ title: 'Text one', content: '<p>text body</p>' });
+    markdown.save({ title: 'Markdown one', content: '# markdown body' });
 
-    template.save(1, { name: 'Template one', data: { text: 'template body', variables: {} } });
-    textEditor.save(1, { name: 'Text one', data: { html: '<p>text body</p>' } });
-    markdown.save(1, { name: 'Markdown one', data: { markdown: '# markdown body' } });
-
-    assert.equal(template.get(1).name, 'Template one');
-    assert.equal(textEditor.get(1).name, 'Text one');
-    assert.equal(markdown.get(1).name, 'Markdown one');
-    assert.deepEqual(markdown.get(1).data, { markdown: '# markdown body' });
-
-    template.ensure(2, { text: '', variables: {} });
-    template.save(2, { name: 'Template two' });
-    assert.equal(template.get(1).name, 'Template one');
-    assert.equal(template.get(2).name, 'Template two');
-    assert.equal(textEditor.get(2), null);
+    assert.equal(template.getTitle(), 'Template one');
+    assert.equal(textEditor.getTitle(), 'Text one');
+    assert.equal(markdown.getTitle(), 'Markdown one');
+    markdown.save({ title: 'Renamed' });
+    assert.equal(template.getTitle(), 'Template one', 'another page keeps its title');
 });
 
-test('new session identifiers are allocated per page above every stored one', () => {
-    const storage = memoryStorage();
-    const template = openStore('template', storage);
-    const markdown = openStore('markdown-editor', storage);
+test('remove drops the session from storage and from the view', () => {
+    const storage = recordingStorage();
+    const store = openStore('text-editor', storage);
+    store.save({ title: 'Keep me', content: 'body' });
 
-    assert.equal(template.allocateId(), 1);
-    template.ensure(1, { text: '', variables: {} });
-    assert.equal(template.allocateId(), 2);
-
-    const reopened = openStore('template', storage);
-    assert.equal(reopened.allocateId(), 3);
-
-    markdown.ensure(1, { markdown: '' });
-    assert.equal(markdown.allocateId(), 2, 'another page keeps its own counter');
-
-    template.save(9, { name: 'Manual nine' });
-    assert.equal(template.allocateId(), 10, 'allocation clears every stored identifier');
+    assert.equal(store.remove(), true);
+    assert.equal(storage.getItem(sessionKey('text-editor')), null);
+    assert.equal(store.remove(), false, 'removing a missing session reports nothing removed');
+    assert.deepEqual(store.get(), { title: '', kind: 'text-editor', versions: [] });
 });
 
-test('a stored session expires 30 days after its last change', () => {
-    const storage = memoryStorage();
-    const clock = fakeClock(1_000_000);
-    const store = openStore('template', storage, { now: clock.now });
-    store.ensure(1, { text: '', variables: {} });
-    store.save(1, { name: 'Dated', data: { text: 'keep me', variables: {} } });
+test('listAll reads every titled stored session with its latest date', () => {
+    const storage = recordingStorage();
+    const clock = fakeClock(Date.UTC(2026, 9, 16, 8, 0, 0));
 
-    clock.advance(30 * DAY_MS);
-    assert.ok(store.get(1), 'exactly 30 days is still stored');
+    const template = openStore('template', storage, { now: clock.now });
+    template.save({ title: 'Invoice', content: 'v1', variables: {} });
+    template.snapshot();
+    clock.advance(MINUTE_MS);
+    template.save({ content: 'v2', variables: {} });
+    template.snapshot();
 
-    clock.advance(DAY_MS);
-    assert.equal(store.get(1), null, 'more than 30 days expires the session');
-    assert.equal(storedDocument(storage, 'template').sessions[1], undefined, 'expired state is dropped');
+    const markdown = openStore('markdown-editor', storage, { now: clock.now });
+    clock.advance(MINUTE_MS);
+    markdown.save({ title: 'Notes', content: '# Notes' });
+    markdown.snapshot();
+
+    openStore('text-editor', storage).save({ content: '<p>draft</p>' });
+
+    assert.deepEqual(listAll(storage), [
+        { kind: 'markdown-editor', title: 'Notes', latestDate: '2026-10-16T08:02:00.000Z' },
+        { kind: 'template', title: 'Invoice', latestDate: '2026-10-16T08:01:00.000Z' },
+    ]);
+
+    assert.deepEqual(openStore('template', storage).listAll(), listAll(storage), 'the store exposes listAll too');
 });
 
-test('editing a session refreshes its 30 day lifetime', () => {
-    const storage = memoryStorage();
-    const clock = fakeClock(0);
-    const store = openStore('template', storage, { now: clock.now });
-    store.ensure(1, { text: '', variables: {} });
+test('listAll tolerates unavailable and unreadable storage', () => {
+    assert.deepEqual(listAll(null), []);
+    assert.deepEqual(listAll(openStore('template', null) && null), []);
 
-    clock.advance(29 * DAY_MS);
-    store.save(1, { name: 'Still alive', data: { text: 'edit', variables: {} } });
-
-    clock.advance(29 * DAY_MS);
-    assert.equal(store.get(1).name, 'Still alive', 'the lifetime restarted at the last edit');
-});
-
-test('an expired session is recreated empty', () => {
-    const storage = memoryStorage();
-    const clock = fakeClock(0);
-    const store = openStore('markdown-editor', storage, { now: clock.now });
-    store.ensure(1, { markdown: '# old' });
-
-    clock.advance(31 * DAY_MS);
-    const session = store.ensure(1, { markdown: '' });
-    assert.deepEqual(session.data, { markdown: '' });
-    assert.equal(session.name, DEFAULT_NAME);
-});
-
-test('sessions can be removed and listed', () => {
-    const store = openStore('text-editor', memoryStorage());
-    store.ensure(2, { html: '' });
-    store.ensure(1, { html: '' });
-    assert.deepEqual(store.listIds(), [1, 2]);
-    assert.equal(store.remove(1), true);
-    assert.equal(store.remove(1), false);
-    assert.deepEqual(store.listIds(), [2]);
+    const storage = recordingStorage();
+    storage.setItem(sessionKey('template'), 'not-json');
+    assert.deepEqual(listAll(storage), [], 'a corrupted document is skipped');
 });
 
 test('a failed write keeps the change in the page view and reports it', () => {
-    const storage = memoryStorage();
+    const storage = recordingStorage();
     const errors = [];
-    const store = openStore('template', storage, {
-        onWriteError: (error) => errors.push(error),
-    });
-    store.ensure(1, { text: '', variables: {} });
+    const store = openStore('template', storage, { onWriteError: (error) => errors.push(error) });
+    store.save({ title: 'Started', content: 'first' });
     assert.equal(store.isPersisted(), true);
 
     storage.setItem = () => {
         throw new Error('QuotaExceededError');
     };
 
-    const saved = store.save(1, { name: 'Unsaved', data: { text: 'visible', variables: {} } });
-    assert.equal(saved.name, 'Unsaved');
-    assert.equal(store.get(1).data.text, 'visible', 'the change is still visible');
+    store.save({ content: 'second' });
+    assert.equal(store.content().content, 'second', 'the change is still visible');
     assert.equal(store.isPersisted(), false, 'the page is told the change was not persisted');
     assert.deepEqual(store.status(), { persistent: true, lastWriteFailed: true });
     assert.equal(errors.length, 1);
 });
 
-test('missing storage degrades to in-memory state and is reported', () => {
-    const store = openStore('markdown-editor', null);
-    assert.equal(store.isPersisted(), false);
-    const session = store.ensure(1, { markdown: '' });
-    assert.equal(session.name, DEFAULT_NAME);
+test('missing or unavailable storage degrades to in-view state', () => {
+    const inMemory = openStore('markdown-editor', null);
+    assert.equal(inMemory.isPersisted(), false);
+    inMemory.save({ title: 'In memory', content: '# kept' });
+    assert.equal(inMemory.content().content, '# kept', 'the page view keeps the change');
+    assert.deepEqual(inMemory.status(), { persistent: false, lastWriteFailed: false });
+    assert.equal(inMemory.save({ content: '# more' }).persisted, false);
 
-    store.save(1, { name: 'In memory', data: { markdown: '# kept' } });
-    assert.equal(store.get(1).name, 'In memory', 'the page view keeps the change');
-    assert.deepEqual(store.status(), { persistent: false, lastWriteFailed: false });
-});
-
-test('unavailable storage is not treated as persistent', () => {
     const broken = memoryStorage();
     broken.setItem = () => {
         throw new Error('SecurityError');
     };
-    const store = openStore('template', broken);
-    assert.equal(store.isPersisted(), false);
-    store.ensure(1, { text: '', variables: {} });
-    store.save(1, { name: 'Still usable', data: { text: 'body', variables: {} } });
-    assert.equal(store.get(1).data.text, 'body');
+    const unavailable = openStore('template', broken);
+    assert.equal(unavailable.isPersisted(), false);
+    unavailable.save({ title: 'Still usable', content: 'body' });
+    assert.equal(unavailable.content().content, 'body');
 });
 
 test('a corrupted stored document does not break the page', () => {
     const storage = memoryStorage();
-    storage.setItem(`${STORAGE_PREFIX}template`, 'not-json');
+    storage.setItem(sessionKey('template'), 'not-json');
     const store = openStore('template', storage);
-    assert.equal(store.get(1), null);
-    const session = store.ensure(1, { text: '', variables: {} });
-    assert.equal(session.name, DEFAULT_NAME);
+    assert.deepEqual(store.get(), { title: '', kind: 'template', versions: [] });
+});
+
+test('stored versions are normalized and capped when read back', () => {
+    const storage = memoryStorage();
+    storage.setItem(sessionKey('template'), JSON.stringify({
+        title: 'Legacy',
+        kind: 'template',
+        versions: [
+            { updatedDate: 'a', content: '1' },
+            { nope: true },
+            { updatedDate: 'b', content: '2' },
+            { updatedDate: 'c', content: '3' },
+            { updatedDate: 'd', content: '4' },
+        ],
+    }));
+
+    const store = openStore('template', storage);
+    assert.deepEqual(store.get().versions.map((version) => version.content), ['2', '3', '4']);
 });
