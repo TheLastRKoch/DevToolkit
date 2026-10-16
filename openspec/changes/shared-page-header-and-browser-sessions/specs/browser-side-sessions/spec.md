@@ -2,134 +2,155 @@
 
 ## Purpose
 
-Keeps each editing page's session state in the browser so work survives page
-reloads and server restarts, stays isolated per page and per session, and expires
-on a defined 30-day schedule.
+Manages each editing page's session state in the browser with conditional
+persistence: session content and version history are saved to `localStorage`
+only when the user provides a valid custom title. Untitled sessions exist only
+in the current page view.
 
 ## ADDED Requirements
 
-### Requirement: Session state is stored in the browser
+### Requirement: Session state is conditionally stored in the browser
 
-The application SHALL persist each page session's state — page name and the
-page's editable content, including template variables where the page has them —
-in the browser's own storage (`localStorage`) for the site's origin. Page state
-SHALL survive a page reload, a browser restart, and a restart of the application
-server, and SHALL NOT depend on server process memory.
+The application SHALL persist a page session's state — title, content, and
+version history — in the browser's `localStorage` for the site's origin **only**
+when the user has provided a valid custom title. A session without a valid title
+SHALL NOT be written to `localStorage`. Persisted state SHALL survive a page
+reload, a browser restart, and a restart of the application server, and SHALL NOT
+depend on server process memory.
 
-#### Scenario: State survives a reload
+#### Scenario: Titled session state survives a reload
 
-- **WHEN** the user edits the page name or the content and then reloads the page
-- **THEN** the page name and the content are restored as they were edited
+- **WHEN** the user provides a valid title and edits content, then reloads the
+  page
+- **THEN** the title and content are restored as they were
 
-#### Scenario: State survives a server restart
+#### Scenario: Titled session state survives a server restart
 
-- **WHEN** the user edits a page session, the application server restarts, and the
-  user reopens that session
-- **THEN** the edited state is still present
+- **WHEN** the user has a titled session, the application server restarts, and the
+  user reopens the page
+- **THEN** the titled session's state is still present
+
+#### Scenario: Untitled session is not persisted
+
+- **WHEN** the user edits content without providing a valid title and reloads the
+  page
+- **THEN** the content is lost and the page opens with an empty default state
 
 #### Scenario: Stored state does not require a request
 
 - **WHEN** a user loads a session page and the application's server API is not
   reachable
-- **THEN** the page still shows that session's stored page name and content
+- **THEN** the page still shows that session's stored title and content (if
+  titled)
 
-### Requirement: Every session page is addressable and isolated
+### Requirement: Title validation and placeholder
 
-Each session-based page SHALL address its sessions by an incrementing numeric
-identifier in the route, for example `/template/1`, `/text-editor/1`, and
-`/markdown-editor/1`. Sessions of the same page SHALL keep their state isolated,
-and different pages SHALL never share state even when they use the same
-identifier.
+The title textbox SHALL display `"DevToolKit"` as a placeholder. A title SHALL be
+considered valid when it is non-empty, non-whitespace-only, and differs from the
+default placeholder (`"DevToolKit"` / `"Devtoolkit"`, case-insensitive). The
+session SHALL be marked as **titled** once the user enters any non-whitespace
+string differing from the default placeholder.
 
-#### Scenario: Sessions of one page are isolated
+#### Scenario: Default placeholder is not a valid title
 
-- **WHEN** the user edits one session of a page and then opens a different
-  session of that same page
-- **THEN** the second session shows its own name and content, unaffected by the
-  first
+- **WHEN** the user leaves the title as "DevToolKit" or enters "devtoolkit"
+- **THEN** the session is not considered titled and is not persisted
+
+#### Scenario: Empty or whitespace-only title is not valid
+
+- **WHEN** the user clears the title or enters only whitespace
+- **THEN** the session is not considered titled and is not persisted
+
+#### Scenario: Custom title is valid
+
+- **WHEN** the user enters "My Project Notes"
+- **THEN** the session is considered titled and persistence is enabled
+
+### Requirement: Title immutability after save
+
+Once a session is created and saved with a valid custom title, the title input
+field SHALL be set to `disabled="true"` and SHALL NOT be editable or renameable
+for the lifetime of that session.
+
+#### Scenario: Title becomes read-only after save
+
+- **WHEN** the user enters a valid title and the session is saved
+- **THEN** the title input field is disabled and shows the saved title
+
+#### Scenario: Title cannot be changed after save
+
+- **WHEN** the user has a titled session and attempts to edit the title
+- **THEN** the title input does not accept changes (it is disabled)
+
+### Requirement: Single session per page type
+
+Each page type (`text-editor`, `markdown-editor`, `template`) SHALL have at
+most one session stored in `localStorage` at key `devtoolkit:sessions:<kind>`.
+Different page types SHALL never share state.
 
 #### Scenario: Pages are isolated from each other
 
-- **WHEN** the user edits session `1` of the template page, the text editor, and
-  the markdown editor
-- **THEN** each page keeps its own state and none of them shows another page's
+- **WHEN** the user creates a titled session on the template page and the text
+  editor
+- **THEN** each page keeps its own state and neither shows the other's content
+
+#### Scenario: Opening a page with no stored session
+
+- **WHEN** the user opens a page that has no stored session in `localStorage`
+- **THEN** the page opens with an empty default state and an editable title
+  textbox with placeholder "DevToolKit"
+
+### Requirement: Version history keeps the last three snapshots
+
+Each titled session SHALL maintain a `versions` array of at most 3 content
+snapshots. When the user navigates away from the tab or window (page unload, tab
+switch, or visibility change), the application SHALL create a snapshot of the
+current content and push it to the array. If the array would exceed 3 entries,
+the oldest entry SHALL be dropped (FIFO).
+
+#### Scenario: First version is created on navigate-away
+
+- **WHEN** the user provides a valid title, edits content, and navigates away
+- **THEN** a version snapshot with the current content and an ISO-8601
+  `updatedDate` is created in the `versions` array
+
+#### Scenario: Fourth version drops the oldest
+
+- **WHEN** the session has 3 versions and the user navigates away with changed
   content
+- **THEN** the oldest version is dropped and the new version is added, keeping
+  the array at 3 entries
 
-#### Scenario: Opening a session that has no stored state
+#### Scenario: Version contents by page type
 
-- **WHEN** the user opens a valid session route that has no stored state
-- **THEN** the page opens with an empty default session named `Devtoolkit`
+- **GIVEN** a text-editor or markdown-editor session
+- **THEN** each version contains `updatedDate` and `content`
+- **GIVEN** a template session
+- **THEN** each version contains `updatedDate`, `content`, and `variables`
 
-#### Scenario: Rejecting an invalid session route
+### Requirement: Version snapshots deduplicate unchanged content
 
-- **WHEN** the user opens a session route whose identifier is not a valid
-  positive integer
-- **THEN** the application responds with an error status instead of the page
+The application SHALL add a new version snapshot only when the current content
+attributes differ from the most recent version, ignoring `updatedDate`. When the
+content is identical, no duplicate snapshot SHALL be created.
 
-#### Scenario: Opening a page without a session identifier
+#### Scenario: Unchanged content does not create a duplicate version
 
-- **WHEN** the user requests a session page without a session identifier, such as
-  `/markdown-editor`
-- **THEN** the application redirects to that page's first session route,
-  `/markdown-editor/1`
-- **AND** the request ultimately resolves to the page with status `200`
-
-### Requirement: New sessions are allocated in the browser
-
-Activating New session SHALL allocate the next free session identifier for the
-current page from browser storage, leaving every existing session unchanged, and
-SHALL open the new session in a new browser tab at that page's session route.
-
-#### Scenario: Opening a new session
-
-- **WHEN** the user selects New session
-- **THEN** a new session identifier greater than every existing identifier for
-  that page is allocated in browser storage
-- **AND** the new session opens in a new browser tab at `/<page>/<new-identifier>`
-
-#### Scenario: Existing sessions are unchanged
-
-- **WHEN** the user opens a new session after editing another one
-- **THEN** the previously edited session keeps all of its state
-
-### Requirement: Stored sessions expire after 30 days
-
-A stored session SHALL carry the time of its last modification and SHALL be
-treated as expired once 30 days have passed since that time. When a page opens an
-expired session, the application SHALL discard the expired stored state and
-initialize a fresh default session for that identifier.
-
-#### Scenario: Fresh session is kept
-
-- **WHEN** the user edits a session whose stored state was last modified less than
-  30 days ago
-- **THEN** the stored state is restored unchanged
-
-#### Scenario: Expired session is discarded
-
-- **WHEN** the user opens a session whose stored state was last modified more than
-  30 days ago
-- **THEN** the expired stored state is removed
-- **AND** the page opens as an empty default session named `Devtoolkit`
-
-#### Scenario: Editing extends the lifetime
-
-- **WHEN** the user modifies an existing session
-- **THEN** that session's last-modification time is refreshed
+- **WHEN** the user navigates away without changing content since the last version
+- **THEN** no new version is added to the `versions` array
 
 ### Requirement: Session lifecycle actions update browser state
 
 Each page's session actions SHALL update only browser-stored state. Clear editor
-SHALL empty the page's editable content while keeping the page name. Clear
-variables SHALL remove all variable values while keeping the template text.
-Clear all SHALL empty the page's editable content and its stored state for that
-session, keeping the page name.
+SHALL empty the page's editable content while keeping the title. Clear variables
+SHALL remove all variable values while keeping the template text. Clear all SHALL
+empty the page's editable content and variable values, keeping the title.
 
 #### Scenario: Clear editor
 
 - **WHEN** the user selects Clear editor
 - **THEN** the editor content becomes empty
-- **AND** the page name is unchanged
+- **AND** the title is unchanged
 
 #### Scenario: Clear variables
 
@@ -142,25 +163,31 @@ session, keeping the page name.
 - **WHEN** the user selects Clear all on the template page
 - **THEN** the template text and all variables are emptied
 
-### Requirement: Unsaved changes are still protected
+### Requirement: Unsaved changes are protected for untitled sessions
 
-The application SHALL track edits to the page name and to the page's editable
-content, SHALL treat the active session as dirty while those edits have not been
-persisted to browser storage, and SHALL request the browser's native
-unsaved-changes confirmation when the user closes, refreshes, or navigates away
-while the active session is dirty.
+If the session does not have a valid custom title and the editor contains
+modified or unsaved content, the application SHALL trigger the browser's native
+`beforeunload` confirmation prompt when the user attempts to close, refresh, or
+navigate away from the tab. Titled sessions SHALL NOT trigger `beforeunload`
+because their content is automatically versioned on navigate-away.
 
-#### Scenario: Warn while an edit is unpersisted
+#### Scenario: Warn untitled session with changes
 
-- **WHEN** the user leaves the page while an edit to the page name or content has
-  not been persisted to browser storage
+- **WHEN** the user has modified content in an untitled session and attempts to
+  leave the page
 - **THEN** the browser displays its native confirmation prompt
 
-#### Scenario: Do not warn when everything is persisted
+#### Scenario: No warning for titled sessions
 
-- **WHEN** the user leaves the page after every edit has been persisted to
-  browser storage
-- **THEN** no confirmation prompt is requested
+- **WHEN** the user has a titled session (whether modified or not) and navigates
+  away
+- **THEN** no `beforeunload` prompt is displayed (content is auto-versioned)
+
+#### Scenario: No warning for untitled session without changes
+
+- **WHEN** the user has an untitled session with no modifications and leaves the
+  page
+- **THEN** no `beforeunload` prompt is displayed
 
 ### Requirement: Unavailable browser storage is reported
 

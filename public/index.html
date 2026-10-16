@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="A gallery of handmade stoneware and porcelain from the Kiln &amp; Clay studio.">
-    <title>Devtoolkit — Kiln &amp; Clay Gallery</title>
+    <meta name="description" content="DevToolKit: a place for Developers by Developers.">
+    <title>Devtoolkit</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="icon" type="image/x-icon" href="static/img/favicon.ico">
 </head>
@@ -14,25 +14,25 @@
     <header class="container py-5">
         <h1 class="display-5 fw-bold mb-3">Welcome to DevToolKit.</h1>
         <p class="lead text-body-secondary col-lg-7 mb-0">
-            A place for Developers by Developers
+            A place for Developers by Developers. Saved sessions from every page are listed below.
         </p>
     </header>
 
     <main class="container pb-5">
         <section aria-label="Gallery controls" class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-between mb-4">
-            <div id="filters" class="d-flex flex-wrap gap-2" role="group" aria-label="Filter by category"></div>
+            <div id="filters" class="d-flex flex-wrap gap-2" role="group" aria-label="Filter by session kind"></div>
 
             <div class="d-flex gap-2">
                 <div class="input-group">
                     <label for="search" class="input-group-text bg-body">Search</label>
-                    <input id="search" type="search" class="form-control" placeholder="Glaze or piece" autocomplete="off" />
+                    <input id="search" type="search" class="form-control" placeholder="Session title" autocomplete="off" />
                 </div>
                 <div class="dropdown">
                     <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="newDropdown"
                         data-bs-toggle="dropdown" aria-expanded="false">New</button>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="newDropdown">
                         <li><a class="dropdown-item" href="/template">Template</a></li>
-                        <li><a class="dropdown-item" href="/editor">Editor</a></li>
+                        <li><a class="dropdown-item" href="/text-editor">Text Editor</a></li>
                         <li><a class="dropdown-item" href="/markdown-editor">Markdown Editor</a></li>
                     </ul>
                 </div>
@@ -44,8 +44,8 @@
         <div id="gallery" class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-4"></div>
 
         <div id="emptyState" class="text-center py-5 d-none">
-            <p class="display-6 text-body-secondary">&#x2615;</p>
-            <p class="mt-3 mb-3">No pieces match those filters.</p>
+            <p class="display-6 text-body-secondary">&#x1F4C1;</p>
+            <p class="mt-3 mb-3">No saved sessions yet. Open a page, give the session a title, and it will appear here.</p>
             <button id="resetFilters" type="button" class="btn btn-primary">Reset filters</button>
         </div>
     </main>
@@ -55,7 +55,8 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    <script type="module" src="/static/scripts/gallery.js"></script>
+    <script src="static/scripts/browser-session.js"></script>
+    <script src="static/scripts/gallery.js"></script>
 </body>
 
 </html>

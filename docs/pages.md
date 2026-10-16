@@ -1,16 +1,15 @@
 # Editing pages
 
-All DevToolkit editing pages are session based: each page owns its state in the
-browser and is addressed by a numeric session identifier, for example
-`/template/1`, `/text-editor/1`, and `/markdown-editor/1`. Requesting a page
-without an identifier (`/text-editor`) redirects to its first session
-(`/text-editor/1`).
+All DevToolkit editing pages are session based: each page owns exactly one
+session in the browser at `/template`, `/text-editor`, and `/markdown-editor`.
+No session identifier is part of the URL; the legacy `/editor` route redirects
+permanently to `/text-editor`.
 
 ## Shared page header
 
 `public/static/scripts/page-header.js` renders one header row below the navbar
-containing the breadcrumb trail, the Options dropdown, and the page-name
-textbox. A page only mounts the header and declares its own content:
+containing the breadcrumb trail, the title textbox, and the Options dropdown. A
+page only mounts the header and declares its own content:
 
 ```html
 <div id="pageHeader"></div>
@@ -20,14 +19,13 @@ textbox. A page only mounts the header and declares its own content:
 ```
 
 ```js
-DevToolkitPageHeader.init({
+DevToolkitPageHeader.initPageHeader({
     mount: document.getElementById('pageHeader'),
     breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Template' }],
-    pageName: session.name,
-    onPageNameChange: (name) => store.save(sessionId, { name }),
+    title: session.title,
     persisted: store.isPersisted(),
+    onTitleChange: (value) => persistTitle(value),
     options: [
-        { id: 'new-session', label: 'New session', run: newSession },
         { id: 'clear-variables', label: 'Clear variables', run: clearVariables },
         { id: 'clear-all', label: 'Clear all', run: clearAll },
     ],
@@ -39,58 +37,84 @@ DevToolkitPageHeader.init({
 | `mount` | Element (or element id) receiving the header row. Defaults to `pageHeader`. |
 | `breadcrumb` | Ordered items, `{ label, href }`. The last item without `href` is the current page. |
 | `options` | Ordered dropdown items, `{ id, label, run }`. Only these are rendered. |
-| `pageName` | Stored page name shown in the textbox and used as `document.title`. |
-| `onPageNameChange` | Called with the typed value on every page-name edit. |
+| `title` | Stored session title. A valid title is shown disabled. |
+| `onTitleChange` | Called with the typed value on every title edit that is not locked. |
 | `persisted` | When `false`, the header states that changes will not be persisted. |
+| `document` | Document to render into. Defaults to the global `document` (tests pass a mock). |
 
-`init` returns `{ setPageName, warn, clearWarning, isOpen, close, element,
-optionIds }`. The header owns the dropdown open/close behavior, so no page needs
-Bootstrap's JavaScript bundle for it.
+`initPageHeader` returns `{ setTitle, lockTitle, isTitleLocked, warn,
+clearWarning, isOpen, close, element, optionIds }`. The header owns the dropdown
+open/close behavior, so no page needs Bootstrap's JavaScript bundle for it.
 
-The page-name textbox updates `document.title` on every keystroke and falls back
-to `Devtoolkit` when it is cleared.
+### Title behavior
+
+The title textbox shows the placeholder `DevToolKit`. A title is valid when it is
+non-empty, not whitespace only, and not the placeholder (matched
+case-insensitively). Typing a valid title sets `document.title` to it; an empty,
+whitespace, or placeholder value falls back to `Devtoolkit`. Once a valid title
+has been saved, the page calls `lockTitle()`, which sets `disabled="true"` on the
+input so the session cannot be renamed; a stored title is restored locked.
 
 ## Page sessions
 
-Every page stores its sessions through
+Every page stores its session through
 `public/static/scripts/browser-session.js`:
 
 ```js
 const store = DevToolkitSessions.openStore('template', DevToolkitSessions.browserStorage());
-const session = store.ensure(sessionId, { text: '', variables: {} });
+const session = store.get();
+const stored = store.content();
 ```
 
-- One stored document per page type at `devtoolkit:sessions:<page type>`, so the
-  template page, the text editor, and the markdown editor never share state, even
-  when they use the same session identifier.
-- Each record is `{ name, updatedAt, expiresAt, data }` and expires 30 days after
-  its last change; editing a session restarts its lifetime, and an expired
-  session opens as a fresh default session named `Devtoolkit`.
-- `allocateId()` returns the next free identifier for that page (New session),
-  and `save()` writes through to `localStorage` on every change.
+- One stored document per page type at `devtoolkit:sessions:<kind>`, shaped
+  `{ title, kind, versions }`, so the template page, the text editor, and the
+  markdown editor never share state.
+- `save({ title, content, variables })` stages the page's state in the session
+  and writes to `localStorage` **only** when the session has a valid custom
+  title. Untitled work stays in the page view.
+- `snapshot()` records the staged content as a version when it differs from the
+  most recent one; the page calls it when the user leaves the tab
+  (`visibilitychange`, `pagehide`) or the window (`beforeunload`). `versions`
+  keeps the last three snapshots (FIFO). Text editor and markdown versions carry
+  `{ updatedDate, content }`; template versions also carry `variables`.
+- `content()` returns the staged content, falling back to the most recent
+  snapshot, which is how a page restores its title and content on load.
+- `listAll()` (also exported as `DevtoolkitSessions.listAll(storage)`) returns
+  `{ kind, title, latestDate }` per stored session for the home page gallery.
+- `remove()` drops the session from storage and the page view.
 - When storage is unavailable or a write fails, the change stays visible in the
   current page view, `store.isPersisted()` becomes `false`, and the header shows
   that changes will not be persisted.
+- An untitled session with modified content triggers the browser's native
+  `beforeunload` confirmation. Titled sessions are versioned instead and do not
+  prompt.
 
 ## Template page
 
-`/template/1` keeps the Template and Variables tabs and the rendered output. Its
-breadcrumb ends in `Template`, and its options are **New session**, **Clear
-variables**, and **Clear all**.
+`/template` keeps the Template and Variables tabs and the rendered output. Its
+breadcrumb ends in `Template`, and its options are **Clear variables** and
+**Clear all**.
 
 ## Text editor page
 
-`/text-editor/1` presents a Quill rich-text editor. Its breadcrumb ends in
-`Text Editor` and it loads as `Text Editor` from the home page and from the
-legacy `/editor` route, which redirects permanently. Its options are **New
-session** and **Clear editor**; the stored content is imported through Quill's
-clipboard conversion, which normalizes it as untrusted markup.
+`/text-editor` presents a Quill rich-text editor. Its breadcrumb ends in
+`Text Editor` and it is reached from the home page and from the legacy `/editor`
+route, which redirects permanently. Its only option is **Clear editor**; the
+stored content is imported through Quill's clipboard conversion, which
+normalizes it as untrusted markup.
 
 ## Markdown editor page
 
-`/markdown-editor/1` keeps the raw markdown pane and the rendered preview. Its
-breadcrumb ends in `Markdown Editor`, and its options are **New session** and
-**Clear editor**.
+`/markdown-editor` keeps the raw markdown pane and the rendered preview. Its
+breadcrumb ends in `Markdown Editor`, and its only option is **Clear editor**.
+
+## Home page gallery
+
+`/` lists every stored session as a card showing the session title and
+`kind · latest updated date`. The filter buttons offer All plus one button per
+session kind (`text-editor`, `markdown-editor`, `template`), the search box
+filters by title, the × button deletes that session from `localStorage`, and an
+empty state is shown when nothing is saved.
 
 ## Page sessions and the server API
 

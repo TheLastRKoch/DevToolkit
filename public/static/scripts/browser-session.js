@@ -1,12 +1,11 @@
 /**
- * Browser-side session store for the DevToolkit editing pages.
+ * Browser-side session store for the DevToolkit pages.
  *
- * Every page type owns one stored document at `devtoolkit:sessions:<pageType>`
- * shaped `{ version, nextId, sessions }`, where each session record is
- * `{ name, updatedAt, expiresAt, data }` and expires 30 days after its last
- * change. The document is the page view's own state; the underlying storage is
- * written through on every change, so a change stays visible in the current page
- * view even when it cannot be persisted.
+ * Every page type owns exactly one stored session at `devtoolkit:sessions:<kind>`
+ * shaped `{ title, kind, versions }`, where `versions` keeps at most the last
+ * three content snapshots (FIFO). The store keeps the current content of the page
+ * in view until the page snapshots it, and a session is written to storage only
+ * once the user provides a valid custom title.
  *
  * Loaded as a classic script in the browser (global `DevToolkitSessions`) and
  * exported for Node tests.
@@ -22,9 +21,10 @@
 }(typeof globalThis === 'object' ? globalThis : this, function () {
     const STORAGE_PREFIX = 'devtoolkit:sessions:';
     const PROBE_KEY = `${STORAGE_PREFIX}__probe`;
-    const DOCUMENT_VERSION = 1;
-    const EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
-    const DEFAULT_NAME = 'Devtoolkit';
+    const MAX_VERSIONS = 3;
+    const DEFAULT_TITLE = 'Devtoolkit';
+    const TITLE_PLACEHOLDER = 'DevToolKit';
+    const PLACEHOLDER_PATTERN = /^devtoolkit$/i;
 
     function browserStorage() {
         try {
@@ -37,39 +37,200 @@
     function memoryStorage() {
         const values = new Map();
         return {
-            getItem: (key) => (values.has(key) ? values.get(key) : null),
+            get length() {
+                return values.size;
+            },
+            key: (index) => {
+                const keys = Array.from(values.keys());
+                return index >= 0 && index < keys.length ? keys[index] : null;
+            },
+            getItem: (key) => (values.has(String(key)) ? values.get(String(key)) : null),
             setItem: (key, value) => {
-                values.set(key, String(value));
+                values.set(String(key), String(value));
             },
             removeItem: (key) => {
-                values.delete(key);
+                values.delete(String(key));
             },
         };
     }
 
-    function emptyDocument() {
-        return { version: DOCUMENT_VERSION, nextId: 1, sessions: {} };
+    /**
+     * A title is valid when it is non-empty, not whitespace only, and not the
+     * default placeholder ("DevToolKit", matched case-insensitively).
+     */
+    function isValidTitle(value) {
+        if (typeof value !== 'string') {
+            return false;
+        }
+        const trimmed = value.trim();
+        return trimmed !== '' && !PLACEHOLDER_PATTERN.test(trimmed);
     }
 
     function clone(value) {
         return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
     }
 
-    function sessionKey(sessionId) {
-        const key = String(sessionId);
-        return /^[1-9][0-9]*$/.test(key) ? key : null;
+    function isPlainObject(value) {
+        return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
     }
 
-    function openStore(pageType, storage, options) {
+    function normalizeVariables(value) {
+        if (!isPlainObject(value)) {
+            return null;
+        }
+        const variables = {};
+        for (const [key, entry] of Object.entries(value)) {
+            if (typeof entry === 'string') {
+                variables[key] = entry;
+            }
+        }
+        return variables;
+    }
+
+    function variablesSignature(value) {
+        const variables = normalizeVariables(value);
+        if (!variables) {
+            return '';
+        }
+        return Object.keys(variables)
+            .sort()
+            .map((key) => `${key}=${variables[key]}`)
+            .join('\n');
+    }
+
+    function samePayload(left, right) {
+        if (!left || !right) {
+            return false;
+        }
+        return left.content === right.content
+            && variablesSignature(left.variables) === variablesSignature(right.variables);
+    }
+
+    function emptySession(kind) {
+        return { title: '', kind, versions: [] };
+    }
+
+    function normalizeVersion(raw) {
+        if (!isPlainObject(raw) || typeof raw.content !== 'string') {
+            return null;
+        }
+        const version = {
+            updatedDate: typeof raw.updatedDate === 'string' ? raw.updatedDate : '',
+            content: raw.content,
+        };
+        const variables = normalizeVariables(raw.variables);
+        if (variables) {
+            version.variables = variables;
+        }
+        return version;
+    }
+
+    function parseSession(kind, raw) {
+        let parsed;
+        try {
+            parsed = JSON.parse(raw);
+        } catch (error) {
+            return null;
+        }
+        if (!isPlainObject(parsed) || !Array.isArray(parsed.versions)) {
+            return null;
+        }
+        const versions = parsed.versions
+            .map((version) => normalizeVersion(version))
+            .filter((version) => version !== null)
+            .slice(-MAX_VERSIONS);
+        return {
+            title: typeof parsed.title === 'string' ? parsed.title : '',
+            kind,
+            versions,
+        };
+    }
+
+    function readStoredSession(storage, key, kind) {
+        if (!storage) {
+            return null;
+        }
+        let raw;
+        try {
+            raw = storage.getItem(key);
+        } catch (error) {
+            return null;
+        }
+        return raw ? parseSession(kind, raw) : null;
+    }
+
+    /**
+     * Reads every stored session from `storage` and returns
+     * `{ kind, title, latestDate }` per session, newest first. Untitled or
+     * unreadable documents are skipped.
+     */
+    function listAll(storage) {
+        const target = arguments.length === 0 ? browserStorage() : storage;
+        const sessions = [];
+        if (!target) {
+            return sessions;
+        }
+        let keys = [];
+        try {
+            const length = Number(target.length) || 0;
+            for (let index = 0; index < length; index += 1) {
+                const key = target.key(index);
+                if (typeof key === 'string') {
+                    keys.push(key);
+                }
+            }
+        } catch (error) {
+            return sessions;
+        }
+        for (const key of keys) {
+            if (!key.startsWith(STORAGE_PREFIX) || key === PROBE_KEY) {
+                continue;
+            }
+            const kind = key.slice(STORAGE_PREFIX.length);
+            if (kind === '') {
+                continue;
+            }
+            const session = readStoredSession(target, key, kind);
+            if (!session || !isValidTitle(session.title)) {
+                continue;
+            }
+            const latest = session.versions[session.versions.length - 1];
+            sessions.push({
+                kind,
+                title: session.title.trim(),
+                latestDate: latest ? latest.updatedDate : '',
+            });
+        }
+        sessions.sort((left, right) => {
+            if (left.latestDate === right.latestDate) {
+                return left.title.localeCompare(right.title);
+            }
+            if (left.latestDate === '') {
+                return 1;
+            }
+            if (right.latestDate === '') {
+                return -1;
+            }
+            return left.latestDate < right.latestDate ? 1 : -1;
+        });
+        return sessions;
+    }
+
+    function sessionKey(kind) {
+        return STORAGE_PREFIX + String(kind);
+    }
+
+    function openStore(kind, storage, options) {
         const settings = options || {};
         const now = typeof settings.now === 'function' ? settings.now : () => Date.now();
         const onWriteError = typeof settings.onWriteError === 'function' ? settings.onWriteError : null;
-        const documentKey = STORAGE_PREFIX + pageType;
+        const key = sessionKey(kind);
         const backing = arguments.length < 2 ? browserStorage() : storage;
         let persistent = false;
         let lastWriteFailed = false;
         let loaded = false;
-        let documentState = null;
+        let state = null;
+        let staged = null;
 
         try {
             if (backing) {
@@ -81,39 +242,28 @@
             persistent = false;
         }
 
-        function readDocument() {
-            if (!persistent) {
-                return emptyDocument();
+        function current() {
+            if (!loaded) {
+                state = readStoredSession(backing, key, kind) || emptySession(kind);
+                loaded = true;
             }
-            let raw;
-            try {
-                raw = backing.getItem(documentKey);
-            } catch (error) {
-                persistent = false;
-                return emptyDocument();
-            }
-            if (!raw) {
-                return emptyDocument();
-            }
-            let parsed;
-            try {
-                parsed = JSON.parse(raw);
-            } catch (error) {
-                return emptyDocument();
-            }
-            if (!parsed || typeof parsed !== 'object' || !parsed.sessions || typeof parsed.sessions !== 'object') {
-                return emptyDocument();
-            }
-            const nextId = Number.isSafeInteger(parsed.nextId) && parsed.nextId > 0 ? parsed.nextId : 1;
-            return { version: DOCUMENT_VERSION, nextId, sessions: parsed.sessions };
+            return state;
         }
 
-        function writeDocument(nextDocument) {
-            if (!persistent) {
+        function isTitled() {
+            return isValidTitle(current().title);
+        }
+
+        /**
+         * Writes the session through to storage, but only when the session has a
+         * valid title. Returns whether the write reached storage.
+         */
+        function write() {
+            if (!persistent || !isTitled()) {
                 return false;
             }
             try {
-                backing.setItem(documentKey, JSON.stringify(nextDocument));
+                backing.setItem(key, JSON.stringify(current()));
                 lastWriteFailed = false;
                 return true;
             } catch (error) {
@@ -125,128 +275,95 @@
             }
         }
 
-        function state() {
-            if (!loaded) {
-                documentState = readDocument();
-                loaded = true;
-            }
-            return documentState;
+        function latestVersion() {
+            const versions = current().versions;
+            return versions.length > 0 ? versions[versions.length - 1] : null;
         }
 
-        function isExpired(record, at) {
-            return !record || typeof record.expiresAt !== 'number' || record.expiresAt < at;
+        function get() {
+            return clone(current());
         }
 
-        function pruneExpired(target, at) {
-            for (const key of Object.keys(target.sessions)) {
-                if (isExpired(target.sessions[key], at)) {
-                    delete target.sessions[key];
-                }
-            }
+        function getTitle() {
+            return current().title;
         }
 
-        function createRecord(at) {
-            return { name: DEFAULT_NAME, updatedAt: at, expiresAt: at + EXPIRY_MS, data: {} };
+        /**
+         * Stages the page's title and content. The title is stored when valid and
+         * the content stays in view until `snapshot()` records it; nothing reaches
+         * storage while the session is untitled.
+         */
+        function save(patch) {
+            const changes = patch || {};
+            if (changes.title !== undefined) {
+                const value = typeof changes.title === 'string' ? changes.title : '';
+                current().title = isValidTitle(value) ? value.trim() : value;
+            }
+            if (changes.content !== undefined) {
+                const content = typeof changes.content === 'string' ? changes.content : '';
+                const variables = normalizeVariables(changes.variables);
+                staged = variables ? { content, variables } : { content };
+            }
+            const persisted = write();
+            return {
+                titled: isTitled(),
+                persisted,
+                title: current().title,
+            };
         }
 
-        function get(sessionId) {
-            const key = sessionKey(sessionId);
-            if (key === null) {
-                return null;
-            }
-            const current = state();
-            const record = current.sessions[key];
-            const at = now();
-            if (isExpired(record, at)) {
-                if (record) {
-                    delete current.sessions[key];
-                    writeDocument(current);
-                }
-                return null;
-            }
-            return clone(record);
-        }
-
-        function ensure(sessionId, defaultData) {
-            const existing = get(sessionId);
-            if (existing) {
-                return existing;
-            }
-            const key = sessionKey(sessionId);
-            if (key === null) {
-                return null;
-            }
-            const at = now();
-            const created = createRecord(at);
-            if (defaultData !== undefined) {
-                created.data = clone(defaultData) || {};
-            }
-            const current = state();
-            current.sessions[key] = created;
-            writeDocument(current);
-            return clone(created);
-        }
-
-        function save(sessionId, patch) {
-            const key = sessionKey(sessionId);
-            if (key === null) {
-                return null;
-            }
-            const current = state();
-            const at = now();
-            const stored = current.sessions[key];
-            const record = isExpired(stored, at) ? createRecord(at) : stored;
-            if (patch && typeof patch.name === 'string') {
-                record.name = patch.name;
-            }
-            if (patch && patch.data !== undefined) {
-                record.data = clone(patch.data) || {};
-            }
-            record.updatedAt = at;
-            record.expiresAt = at + EXPIRY_MS;
-            current.sessions[key] = record;
-            pruneExpired(current, at);
-            writeDocument(current);
-            return clone(record);
-        }
-
-        function allocateId() {
-            const current = state();
-            const at = now();
-            pruneExpired(current, at);
-            let highest = 0;
-            for (const key of Object.keys(current.sessions)) {
-                const value = Number(key);
-                if (Number.isSafeInteger(value) && value > highest) {
-                    highest = value;
-                }
-            }
-            const nextId = Math.max(current.nextId, highest + 1);
-            current.nextId = nextId + 1;
-            writeDocument(current);
-            return nextId;
-        }
-
-        function remove(sessionId) {
-            const key = sessionKey(sessionId);
-            if (key === null) {
+        /**
+         * Records the staged content as a version when it differs from the most
+         * recent snapshot, dropping the oldest version above three.
+         */
+        function snapshot() {
+            const next = current();
+            if (!isTitled() || !staged || samePayload(latestVersion(), staged)) {
                 return false;
             }
-            const current = state();
-            if (!Object.prototype.hasOwnProperty.call(current.sessions, key)) {
-                return false;
+            const version = {
+                updatedDate: new Date(now()).toISOString(),
+                content: staged.content,
+            };
+            if (staged.variables) {
+                version.variables = clone(staged.variables);
             }
-            delete current.sessions[key];
-            writeDocument(current);
+            next.versions.push(version);
+            if (next.versions.length > MAX_VERSIONS) {
+                next.versions.splice(0, next.versions.length - MAX_VERSIONS);
+            }
+            write();
             return true;
         }
 
-        function listIds() {
-            const current = state();
-            pruneExpired(current, now());
-            return Object.keys(current.sessions)
-                .map((key) => Number(key))
-                .sort((a, b) => a - b);
+        /** The staged content, falling back to the most recent snapshot. */
+        function content() {
+            const source = staged || latestVersion();
+            if (!source) {
+                return { content: '', variables: {} };
+            }
+            const view = { content: source.content };
+            if (source.variables !== undefined) {
+                view.variables = clone(source.variables);
+            }
+            return view;
+        }
+
+        /** Drops the session from storage and from the current page view. */
+        function remove() {
+            let removed = false;
+            if (persistent) {
+                try {
+                    removed = backing.getItem(key) !== null;
+                    backing.removeItem(key);
+                } catch (error) {
+                    removed = false;
+                }
+            }
+            state = emptySession(kind);
+            loaded = true;
+            staged = null;
+            return removed;
         }
 
         function status() {
@@ -258,15 +375,18 @@
         }
 
         return {
-            pageType,
-            defaultName: DEFAULT_NAME,
-            expiryMs: EXPIRY_MS,
+            kind,
+            defaultTitle: DEFAULT_TITLE,
+            maxVersions: MAX_VERSIONS,
+            key,
             get,
-            ensure,
+            getTitle,
+            isTitled,
             save,
-            allocateId,
+            snapshot,
+            content,
             remove,
-            listIds,
+            listAll: () => listAll(backing),
             status,
             isPersisted,
         };
@@ -274,11 +394,14 @@
 
     return {
         openStore,
+        listAll,
         browserStorage,
         memoryStorage,
-        DEFAULT_NAME,
-        EXPIRY_MS,
-        DOCUMENT_VERSION,
+        isValidTitle,
+        sessionKey,
+        DEFAULT_TITLE,
+        TITLE_PLACEHOLDER,
+        MAX_VERSIONS,
         STORAGE_PREFIX,
     };
 }));

@@ -4,10 +4,25 @@
  * The repository has no jsdom dependency, so page scripts are exercised the same
  * way test/markdown-editor.test.js does it: the script source runs inside a
  * `new Function` sandbox with mock `document` and `window` objects. This helper
- * builds those mocks with just enough behavior for the shared page header and
- * the page scripts (elements, attributes, classes, events, and dispatching).
+ * builds those mocks with just enough behavior for the shared page header, the
+ * gallery, and the page scripts (elements, attributes, classes, events, parent
+ * links, and dispatching).
  */
 'use strict';
+
+function matchesSelector(element, selector) {
+    if (selector.startsWith('.')) {
+        return element.classList.contains(selector.slice(1));
+    }
+    if (selector.startsWith('#')) {
+        return element.getAttribute('id') === selector.slice(1);
+    }
+    if (selector.startsWith('[') && selector.endsWith(']')) {
+        const name = selector.slice(1, -1).split('=')[0];
+        return element.getAttribute(name) !== null;
+    }
+    return element.tagName === selector.toUpperCase();
+}
 
 function createElement(tag, registry) {
     const classes = new Set();
@@ -16,8 +31,10 @@ function createElement(tag, registry) {
     const element = {
         tagName: String(tag).toUpperCase(),
         children: [],
+        parentNode: null,
         textContent: '',
         hidden: false,
+        disabled: false,
         value: '',
         classList: {
             add: (...names) => names.forEach((name) => classes.add(name)),
@@ -41,18 +58,49 @@ function createElement(tag, registry) {
         },
         getAttribute: (name) => (name in attributes ? attributes[name] : null),
         appendChild: (child) => {
+            child.parentNode = element;
             element.children.push(child);
             return child;
+        },
+        removeChild: (child) => {
+            const index = element.children.indexOf(child);
+            if (index >= 0) {
+                element.children.splice(index, 1);
+                child.parentNode = null;
+            }
+            return child;
+        },
+        replaceChildren: (...children) => {
+            element.children = [];
+            children.forEach((child) => element.appendChild(child));
         },
         addEventListener: (type, handler) => {
             listeners[type] = listeners[type] || [];
             listeners[type].push(handler);
         },
         dispatch: (type, event) => {
-            (listeners[type] || []).forEach((handler) => handler(event || { preventDefault() {} }));
+            const detail = event || {};
+            detail.target = detail.target || element;
+            let node = element;
+            while (node) {
+                (node.__listeners && node.__listeners[type] ? node.__listeners[type] : [])
+                    .forEach((handler) => handler(detail));
+                node = node.parentNode;
+            }
         },
         contains: (node) => node === element || element.children.some((child) => child.contains(node)),
+        closest: (selector) => {
+            let node = element;
+            while (node) {
+                if (matchesSelector(node, selector)) {
+                    return node;
+                }
+                node = node.parentNode;
+            }
+            return null;
+        },
     };
+    element.__listeners = listeners;
     return element;
 }
 
@@ -61,14 +109,19 @@ function createDom(ids) {
     const documentListeners = {};
     const document = {
         title: '',
+        visibilityState: 'visible',
+        body: createElement('body', registry),
         createElement: (tag) => createElement(tag, registry),
         getElementById: (id) => registry.get(String(id)) || null,
+        createDocumentFragment: () => createElement('fragment', registry),
         addEventListener: (type, handler) => {
             documentListeners[type] = documentListeners[type] || [];
             documentListeners[type].push(handler);
         },
         dispatch: (type, event) => {
-            (documentListeners[type] || []).forEach((handler) => handler(event || {}));
+            const detail = event || {};
+            detail.target = detail.target || document;
+            (documentListeners[type] || []).forEach((handler) => handler(detail));
         },
     };
 
@@ -91,7 +144,9 @@ function createWindow(pathname) {
             listeners[type].push(handler);
         },
         dispatch: (type, event) => {
-            (listeners[type] || []).forEach((handler) => handler(event || { preventDefault() {} }));
+            const detail = event || { preventDefault() {} };
+            detail.target = detail.target || null;
+            (listeners[type] || []).forEach((handler) => handler(detail));
         },
         open: (url) => {
             opened.push(url);
@@ -100,21 +155,25 @@ function createWindow(pathname) {
     };
 }
 
-function runScript(source, { document, window, globals }) {
-    const names = Object.keys(globals);
-    const fn = new Function('document', 'window', ...names, source);
-    fn(document, window, ...names.map((name) => globals[name]));
+function runScript(source, { document, window, globals, sandbox }) {
+    const names = Object.keys(globals || {});
+    const fn = new Function('document', 'window', 'globalThis', ...names, source);
+    fn(document, window, sandbox || {}, ...names.map((name) => globals[name]));
     return fn;
 }
 
 /**
- * Binds a page script's browser global to the sandbox document, because a module
- * required by Node resolves `document` from its own scope, not the sandbox's.
+ * Binds the page header's browser global to the sandbox document, because a
+ * module required by Node resolves `document` from its own scope, not the
+ * sandbox's.
  */
 function withDocument(api, document) {
-    return Object.assign({}, api, {
-        init: (config) => api.init(Object.assign({ document }, config)),
-    });
+    if (typeof api.initPageHeader === 'function') {
+        return Object.assign({}, api, {
+            initPageHeader: (config) => api.initPageHeader(Object.assign({ document }, config)),
+        });
+    }
+    return api;
 }
 
 module.exports = { createDom, createElement, createWindow, runScript, withDocument };
