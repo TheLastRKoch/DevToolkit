@@ -3,8 +3,8 @@
 ## Purpose
 
 Provides one reusable page header item — breadcrumb, options dropdown, and
-page-name textbox — so every editing page shows the same header row and declares
-only its own breadcrumb trail, menu options, and page name instead of
+title textbox — so every editing page shows the same header row and declares
+only its own breadcrumb trail, menu options, and title instead of
 re-implementing the row.
 
 ## ADDED Requirements
@@ -12,26 +12,26 @@ re-implementing the row.
 ### Requirement: Pages share one page header item
 
 The application SHALL provide a single reusable page header that renders the
-breadcrumb trail, an Options dropdown, and a page-name textbox in one row below
+breadcrumb trail, an Options dropdown, and a title textbox in one row below
 the navbar. Each page that adopts the header SHALL supply its own breadcrumb
-items, its own set of dropdown options, and its own page-name value, and SHALL
-NOT duplicate the header markup, the dropdown container, or the name textbox.
+items, its own set of dropdown options, and its own title value, and SHALL
+NOT duplicate the header markup, the dropdown container, or the title textbox.
 
 #### Scenario: Adopting page declares its own header content
 
 - **WHEN** a page adopts the shared page header with a breadcrumb trail, a set of
-  options, and a page name
-- **THEN** the header renders that breadcrumb trail, those options, and that page
-  name in one row below the navbar
+  options, and a title
+- **THEN** the header renders that breadcrumb trail, those options, and that title
+  in one row below the navbar
 - **AND** the page contains no separate copy of the breadcrumb, dropdown, or
-  page-name markup
+  title markup
 
 #### Scenario: Header structure is identical across pages
 
 - **WHEN** the user opens any two adopting pages
 - **THEN** both pages show the breadcrumb, the Options dropdown, and the
-  page-name textbox in the same header row position
-- **AND** neither page renders a second breadcrumb row, dropdown, or name
+  title textbox in the same header row position
+- **AND** neither page renders a second breadcrumb row, dropdown, or title
   textbox elsewhere in its layout
 
 ### Requirement: The Options dropdown exposes only the current page's options
@@ -56,66 +56,69 @@ the dropdown.
 
 ### Requirement: Each adopting page declares its own options
 
-The template page SHALL declare New session, Clear variables, and Clear all as
-its dropdown options. The text editor page SHALL declare New session and Clear
-editor. The markdown editor page SHALL declare New session and Clear editor. A
-page SHALL offer no option that it does not implement.
+The template page SHALL declare Clear variables and Clear all as its dropdown
+options. The text editor page SHALL declare Clear editor. The markdown editor
+page SHALL declare Clear editor. A page SHALL offer no option that it does not
+implement.
 
 #### Scenario: Template page options
 
 - **WHEN** the user opens the template page and activates the Options dropdown
-- **THEN** New session, Clear variables, and Clear all are listed
+- **THEN** Clear variables and Clear all are listed
 
 #### Scenario: Text editor page options
 
 - **WHEN** the user opens the text editor page and activates the Options dropdown
-- **THEN** New session and Clear editor are listed
+- **THEN** Clear editor is listed
 - **AND** no variable-related option is listed
 
 #### Scenario: Markdown editor page options
 
 - **WHEN** the user opens the markdown editor page and activates the Options
   dropdown
-- **THEN** New session and Clear editor are listed
+- **THEN** Clear editor is listed
 
-### Requirement: The page-name textbox renames the current page
+### Requirement: The title textbox validates the entered title
 
-Every adopting page SHALL render a page-name textbox in the header row. Editing
-it SHALL update `document.title` to the entered value and SHALL store the entered
-value as the current session's page name so the value is restored when that
-session is opened again. An empty page name SHALL fall back to the default page
-title `Devtoolkit`.
+Every adopting page SHALL render a title textbox in the header row with the
+placeholder `"DevToolKit"`. A title that is empty, whitespace-only, or matches
+the default placeholder (case-insensitive) SHALL NOT be considered valid. Editing
+the title SHALL update `document.title` to the entered value; an empty or invalid
+title SHALL fall back to the default page title `Devtoolkit`.
 
-#### Scenario: Editing the page name updates the tab title
+#### Scenario: Editing the title updates the tab title
 
-- **WHEN** the user types a new value into the page-name textbox
+- **WHEN** the user types a new value into the title textbox
 - **THEN** `document.title` becomes that value
 
-#### Scenario: The page name is restored
+#### Scenario: The title is restored on reload
 
-- **WHEN** the user reloads the page or reopens the same session after typing a
-  page name
-- **THEN** the page-name textbox shows the stored name
-- **AND** `document.title` shows the stored name
+- **WHEN** the user reloads the page after a titled session has been saved
+- **THEN** the title textbox shows the stored title (disabled)
+- **AND** `document.title` shows the stored title
 
-#### Scenario: Empty page name falls back to the default
+#### Scenario: Invalid title falls back to the default
 
-- **WHEN** the user clears the page-name textbox
+- **WHEN** the user clears the title textbox or enters the default placeholder
 - **THEN** `document.title` becomes `Devtoolkit`
 
-### Requirement: The page name is scoped to the current page session
+### Requirement: The title becomes immutable after save
 
-The page-name textbox SHALL read and write the page name of the session the page
-is currently showing and SHALL NOT change the page name shown by any other page
-or by another session of the same page.
+Once a valid title is saved and the session is persisted, the title input SHALL
+be set to `disabled="true"` and SHALL NOT be editable for the lifetime of that
+session.
 
-#### Scenario: Renaming one session does not rename another
+#### Scenario: Title becomes disabled after save
 
-- **WHEN** the user renames the session in one tab and then opens a different
-  session of the same page in another tab
-- **THEN** the second session keeps its own page name
+- **WHEN** a valid title is provided and the session is saved
+- **THEN** the title input is disabled and cannot be edited
+
+### Requirement: The title is scoped to the current page
+
+The title textbox SHALL read and write the title of the session for the current
+page type and SHALL NOT change the title shown by any other page type.
 
 #### Scenario: Renaming one page does not rename another page
 
-- **WHEN** the user renames the page on the text editor
-- **THEN** the template and markdown editor pages keep their own page names
+- **WHEN** the user sets a title on the text editor
+- **THEN** the template and markdown editor pages keep their own titles
