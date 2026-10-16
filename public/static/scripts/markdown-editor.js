@@ -2,6 +2,8 @@
  * Markdown Editor – DevToolkit
  *
  * Handles:
+ *  - Browser-stored session content and page name
+ *  - The shared page header (breadcrumb, options, page name)
  *  - Live Markdown-to-HTML rendering via marked
  *  - Real-time character count status bar
  *  - Per-pane expand/restore toggles
@@ -11,6 +13,11 @@
 'use strict';
 
 (function () {
+    const sessionId = window.location.pathname.match(/^\/markdown-editor\/([1-9][0-9]*)$/)?.[1];
+    if (!sessionId) {
+        return;
+    }
+
     // ── DOM references ──────────────────────────────────────────────────────
     const mdInput       = document.getElementById('mdInput');
     const mdPreview     = document.getElementById('mdPreview');
@@ -118,34 +125,63 @@
         applyPaneState();
     });
 
-    // ── Default sample content ────────────────────────────────────────────────
-    const sampleMarkdown = [
-        '# Welcome to the Markdown Editor',
-        '',
-        'Type or paste **Markdown** on the left and see the rendered preview on the right.',
-        '',
-        '## Features',
-        '',
-        '- Live preview as you type',
-        '- Character count in the status bar below',
-        '- Expand either pane to full width with the `[]` button',
-        '- Synchronized scrolling between panes',
-        '',
-        '## Code Example',
-        '',
-        '```javascript',
-        'console.log("Hello, Markdown!");',
-        '```',
-        '',
-        '> Tip: Use the `[]` button on any pane to maximize it.',
-    ].join('\n');
+    // ── Browser session and shared page header ───────────────────────────────
+    let header = null;
+    let dirty = false;
 
-    mdInput.value = sampleMarkdown;
+    const store = DevToolkitSessions.openStore('markdown-editor', DevToolkitSessions.browserStorage(), {
+        onWriteError: () => {
+            if (header) {
+                header.warn('Changes will not be persisted in this browser.');
+            }
+        },
+    });
+    const session = store.ensure(sessionId, { markdown: '' });
+
+    function persist(patch) {
+        dirty = true;
+        store.save(sessionId, patch);
+        dirty = !store.isPersisted();
+    }
+
+    function clearEditor() {
+        mdInput.value = '';
+        updateContent();
+        persist({ data: { markdown: '' } });
+    }
+
+    function newSession() {
+        window.open(`/markdown-editor/${store.allocateId()}`, '_blank', 'noopener');
+    }
+
+    header = DevToolkitPageHeader.init({
+        mount: document.getElementById('pageHeader'),
+        breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Markdown Editor' }],
+        pageName: session.name,
+        persisted: store.isPersisted(),
+        onPageNameChange: (name) => persist({ name }),
+        options: [
+            { id: 'new-session', label: 'New session', run: newSession },
+            { id: 'clear-editor', label: 'Clear editor', run: clearEditor },
+        ],
+    });
 
     // ── Initialize ────────────────────────────────────────────────────────────
+    mdInput.value = session.data.markdown || '';
     updateContent();
     applyPaneState();
 
     // Live updates on input (covers typing, paste, cut, undo/redo)
-    mdInput.addEventListener('input', updateContent);
+    mdInput.addEventListener('input', () => {
+        updateContent();
+        persist({ data: { markdown: mdInput.value } });
+    });
+
+    window.addEventListener('beforeunload', (event) => {
+        if (!dirty) {
+            return;
+        }
+        event.preventDefault();
+        event.returnValue = '';
+    });
 }());

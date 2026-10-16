@@ -100,13 +100,31 @@ app.get('/template/:sessionId', (req, res) => {
     return res.sendFile(path.join(__dirname, 'public', 'template.html'));
 });
 
+function serveSessionPage(fileName, label) {
+    return (req, res) => {
+        const id = parseSessionId(req.params.sessionId);
+        if (id === null) {
+            return res.status(400).send(`Invalid ${label} session id`);
+        }
+        return res.sendFile(path.join(__dirname, 'public', fileName));
+    };
+}
+
 app.get('/editor', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'editor.html'));
+    res.redirect(301, '/text-editor');
 });
 
-app.get('/markdown-editor', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'markdown-editor.html'));
+app.get('/text-editor', (req, res) => {
+    res.redirect('/text-editor/1');
 });
+
+app.get('/text-editor/:sessionId', serveSessionPage('text-editor.html', 'text editor'));
+
+app.get('/markdown-editor', (req, res) => {
+    res.redirect('/markdown-editor/1');
+});
+
+app.get('/markdown-editor/:sessionId', serveSessionPage('markdown-editor.html', 'markdown editor'));
 
 app.post('/api/template/sessions', (req, res) => {
     const session = createSession();
