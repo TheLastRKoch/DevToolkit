@@ -1,17 +1,20 @@
 # Dynamic template sessions
 
-Open `/template` to start session 1. Every session is stored in the browser and
-is addressable at `/template/<session-id>`. Use **New session** from the Options
-menu to open the next session in a new browser tab.
+Open `/template` to work on the template page's single session. Its text,
+variables, and title live in this browser's `localStorage` under
+`devtoolkit:sessions:template`, not in the server process.
 
-Sessions live in this browser's `localStorage`, not in the server process:
-
-- Session state survives page reloads, browser restarts, and application server
-  restarts, and does not require any request to the server to load.
-- Each session expires 30 days after its last change. Editing a session restarts
-  its lifetime; an expired session opens as a fresh one named `Devtoolkit`.
-- If browser storage is unavailable or a write fails, the change stays visible on
-  the page and the header reports that changes will not be persisted.
+- Nothing is stored until the session has a **valid custom title** (non-empty,
+  not whitespace, not the `DevToolKit` placeholder). Untitled work stays in the
+  page view, and leaving with unsaved changes raises the browser's native
+  “Leave site?” confirmation.
+- Once titled, the session survives page reloads, browser restarts, and
+  application server restarts without any request to the server, and the title
+  textbox is disabled so the session cannot be renamed.
+- The session keeps the last three content snapshots. A snapshot is recorded
+  when you leave the tab (or the page unloads) and the template text or the
+  variable values changed since the most recent one; unchanged content is not
+  snapshotted twice, and a fourth snapshot drops the oldest.
 
 The `/api/template/*` endpoints and their in-memory server sessions still exist
 for existing clients, but the template page does not use them.
@@ -25,7 +28,7 @@ consuming the full 12-column grid row:
 - **Output column (right)**: Contains the rendered template output.
 
 Above both columns, the shared page header (see [Editing pages](pages.md)) renders
-the breadcrumb, the Options menu, and the page name textbox in one row.
+the breadcrumb, the Options menu, and the title textbox in one row.
 
 ## Variables and Syntax
 
@@ -38,7 +41,7 @@ textarea in the Variables tab using the line-by-line format:
 @[variable-name]=variable content
 ```
 Empty variables are represented as `@[variable-name]=`. Editing this textarea
-updates the stored session variables.
+updates the session variables.
 
 ## Event Triggers and Synchronization
 
@@ -55,11 +58,7 @@ updates the stored session variables.
 
 The session controls live in the header's Options menu:
 
-- **New session**: Allocates the next session identifier and opens it in a new tab.
 - **Clear variables**: Removes all variable values while preserving the template text.
 - **Clear all**: Resets both template text and all variables.
-- **Page name**: The header textbox updates the browser tab title and is stored as
-  the session's name, so it is restored on reload.
-- **Unsaved changes**: An edit that has not been written to browser storage yet
-  enables the browser's native “Leave site?” confirmation when closing,
-  refreshing, or navigating away.
+- **Title**: The header textbox updates the browser tab title and is stored as the
+  session's title, so it is restored on reload; a saved title is disabled.

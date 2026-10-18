@@ -83,48 +83,23 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/template', (req, res) => {
-    if (!sessions.has(1)) {
-        getSession(1);
-        nextSessionId = Math.max(nextSessionId, 2);
-    }
-    res.redirect('/template/1');
-});
-
-app.get('/template/:sessionId', (req, res) => {
-    const id = parseSessionId(req.params.sessionId);
-    if (id === null) {
-        return res.status(400).send('Invalid template session id');
-    }
-    getSession(id);
-    return res.sendFile(path.join(__dirname, 'public', 'template.html'));
-});
-
-function serveSessionPage(fileName, label) {
-    return (req, res) => {
-        const id = parseSessionId(req.params.sessionId);
-        if (id === null) {
-            return res.status(400).send(`Invalid ${label} session id`);
-        }
-        return res.sendFile(path.join(__dirname, 'public', fileName));
-    };
+/**
+ * Every editing page serves its own page directly: each page type owns exactly
+ * one browser-side session, so no session identifier is part of the URL.
+ */
+function servePage(fileName) {
+    return (req, res) => res.sendFile(path.join(__dirname, 'public', fileName));
 }
+
+app.get('/template', servePage('template.html'));
 
 app.get('/editor', (req, res) => {
     res.redirect(301, '/text-editor');
 });
 
-app.get('/text-editor', (req, res) => {
-    res.redirect('/text-editor/1');
-});
+app.get('/text-editor', servePage('text-editor.html'));
 
-app.get('/text-editor/:sessionId', serveSessionPage('text-editor.html', 'text editor'));
-
-app.get('/markdown-editor', (req, res) => {
-    res.redirect('/markdown-editor/1');
-});
-
-app.get('/markdown-editor/:sessionId', serveSessionPage('markdown-editor.html', 'markdown editor'));
+app.get('/markdown-editor', servePage('markdown-editor.html'));
 
 app.post('/api/template/sessions', (req, res) => {
     const session = createSession();

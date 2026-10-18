@@ -2,8 +2,8 @@
  * Markdown Editor – DevToolkit
  *
  * Handles:
- *  - Browser-stored session content and page name
- *  - The shared page header (breadcrumb, options, page name)
+ *  - Browser-stored session content and title
+ *  - The shared page header (breadcrumb, options, title)
  *  - Live Markdown-to-HTML rendering via marked
  *  - Real-time character count status bar
  *  - Per-pane expand/restore toggles
@@ -13,11 +13,6 @@
 'use strict';
 
 (function () {
-    const sessionId = window.location.pathname.match(/^\/markdown-editor\/([1-9][0-9]*)$/)?.[1];
-    if (!sessionId) {
-        return;
-    }
-
     // ── DOM references ──────────────────────────────────────────────────────
     const mdInput       = document.getElementById('mdInput');
     const mdPreview     = document.getElementById('mdPreview');
@@ -136,52 +131,85 @@
             }
         },
     });
-    const session = store.ensure(sessionId, { markdown: '' });
+    const session = store.get();
+    const stored = store.content();
 
-    function persist(patch) {
+    /** Stages the markdown in the session; a titled session writes through. */
+    function persistContent() {
         dirty = true;
-        store.save(sessionId, patch);
-        dirty = !store.isPersisted();
+        store.save({ content: mdInput.value });
     }
 
+    /** Records the current markdown as a version when it changed. */
+    function snapshot() {
+        if (store.isTitled()) {
+            store.snapshot();
+        }
+    }
+
+    function onTitleChange(value) {
+        dirty = true;
+        store.save({ title: value });
+        if (!store.isTitled()) {
+            return;
+        }
+        snapshot();
+        if (store.isPersisted()) {
+            header.lockTitle();
+        }
+    }
+
+    function protectUnsavedWork(event) {
+        if (store.isTitled()) {
+            snapshot();
+            if (store.isPersisted()) {
+                return;
+            }
+        } else if (!dirty) {
+            return;
+        }
+        if (event) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    }
+
+    /** Clear editor empties the content only; the title stays. */
     function clearEditor() {
         mdInput.value = '';
         updateContent();
-        persist({ data: { markdown: '' } });
+        persistContent();
+        dirty = false;
     }
 
-    function newSession() {
-        window.open(`/markdown-editor/${store.allocateId()}`, '_blank', 'noopener');
-    }
-
-    header = DevToolkitPageHeader.init({
+    header = DevToolkitPageHeader.initPageHeader({
         mount: document.getElementById('pageHeader'),
         breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Markdown Editor' }],
-        pageName: session.name,
+        title: session.title,
         persisted: store.isPersisted(),
-        onPageNameChange: (name) => persist({ name }),
+        onTitleChange,
         options: [
-            { id: 'new-session', label: 'New session', run: newSession },
             { id: 'clear-editor', label: 'Clear editor', run: clearEditor },
         ],
     });
 
     // ── Initialize ────────────────────────────────────────────────────────────
-    mdInput.value = session.data.markdown || '';
+    mdInput.value = stored.content || '';
     updateContent();
     applyPaneState();
 
     // Live updates on input (covers typing, paste, cut, undo/redo)
     mdInput.addEventListener('input', () => {
         updateContent();
-        persist({ data: { markdown: mdInput.value } });
+        persistContent();
     });
 
-    window.addEventListener('beforeunload', (event) => {
-        if (!dirty) {
-            return;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            snapshot();
         }
-        event.preventDefault();
-        event.returnValue = '';
     });
+
+    window.addEventListener('pagehide', snapshot);
+    window.addEventListener('beforeunload', protectUnsavedWork);
 }());

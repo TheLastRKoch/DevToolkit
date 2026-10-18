@@ -1,24 +1,22 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const fs = require('node:fs');
-const path = require('node:path');
 
-const sessionsModule = require('../public/static/scripts/browser-session.js');
-const { openMarkdownPage } = require('./helpers/pages.js');
+const { openMarkdownPage, readPage, readScript, sessionsModule } = require('./helpers/pages.js');
 
-const markdownScript = fs.readFileSync(path.join(__dirname, '../public/static/scripts/markdown-editor.js'), 'utf8');
-const markdownHtml = fs.readFileSync(path.join(__dirname, '../public/markdown-editor.html'), 'utf8');
+const markdownScript = readScript('markdown-editor.js');
+const markdownHtml = readPage('markdown-editor.html');
 
-test('the markdown page mounts the shared header with its own options', () => {
-    const storage = sessionsModule.memoryStorage();
-    const page = openMarkdownPage(storage);
+function latestVersion(page) {
+    const session = page.storedSession();
+    return session ? session.versions[session.versions.length - 1] : null;
+}
 
-    assert.deepEqual(page.optionItems().map((item) => item.textContent), ['New session', 'Clear editor']);
+test('the markdown page declares the shared header with its own options', () => {
+    const page = openMarkdownPage(sessionsModule.memoryStorage());
 
-    const header = page.element('pageHeader').children[0];
-    const breadcrumb = header.children[0].children[0].children[0];
-    assert.equal(breadcrumb.children[1].textContent, 'Markdown Editor');
-    assert.equal(page.element('pageNameInput').value, 'Devtoolkit');
+    assert.deepEqual(page.optionItems().map((item) => item.textContent), ['Clear editor']);
+    assert.deepEqual(page.breadcrumbItems(), ['Home', 'Markdown Editor']);
+    assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
     assert.equal(page.document.title, 'Devtoolkit');
 });
 
@@ -26,62 +24,89 @@ test('a new markdown session starts empty', () => {
     const page = openMarkdownPage(sessionsModule.memoryStorage());
     assert.equal(page.element('mdInput').value, '');
     assert.equal(page.element('charCount').textContent, 0);
-    assert.deepEqual(page.storedSession().data, { markdown: '' });
+    assert.equal(page.storedSession(), null, 'an untitled session is not stored');
 });
 
-test('markdown text and page name are stored on the browser session', () => {
+test('markdown text and title are stored on the browser session', () => {
     const storage = sessionsModule.memoryStorage();
     const page = openMarkdownPage(storage);
 
-    page.element('mdInput').value = '# Notes';
-    page.element('mdInput').dispatch('input', {});
-    assert.equal(page.storedSession().data.markdown, '# Notes');
+    page.type('mdInput', '# Notes');
     assert.equal(page.element('mdPreview').innerHTML, '<p># Notes</p>');
     assert.equal(page.element('charCount').textContent, 7);
+    assert.equal(storage.getItem('devtoolkit:sessions:markdown-editor'), null, 'untitled work is not stored');
 
-    page.element('pageNameInput').value = 'Scratch pad';
-    page.element('pageNameInput').dispatch('input', {});
-    assert.equal(page.storedSession().name, 'Scratch pad');
+    page.typeTitle('Scratch pad');
     assert.equal(page.document.title, 'Scratch pad');
+    assert.equal(page.titleInput().getAttribute('disabled'), 'true');
+
+    const session = page.storedSession();
+    assert.equal(session.kind, 'markdown-editor');
+    assert.equal(session.title, 'Scratch pad');
+    assert.equal(latestVersion(page).content, '# Notes');
+    assert.ok(!('variables' in latestVersion(page)), 'markdown versions carry no variables');
 });
 
 test('a later load restores the stored markdown session', () => {
     const storage = sessionsModule.memoryStorage();
     const first = openMarkdownPage(storage);
-    first.element('mdInput').value = '## Remember me';
-    first.element('mdInput').dispatch('input', {});
-    first.element('pageNameInput').value = 'Notes';
-    first.element('pageNameInput').dispatch('input', {});
+    first.type('mdInput', '## Remember me');
+    first.typeTitle('Notes');
+    first.hide();
 
     const reloaded = openMarkdownPage(storage);
     assert.equal(reloaded.element('mdInput').value, '## Remember me');
     assert.equal(reloaded.element('mdPreview').innerHTML, '<p>## Remember me</p>');
-    assert.equal(reloaded.element('pageNameInput').value, 'Notes');
+    assert.equal(reloaded.titleInput().value, 'Notes');
     assert.equal(reloaded.document.title, 'Notes');
 });
 
-test('Clear editor empties the content and keeps the page name', () => {
+test('Clear editor empties the content and keeps the title', () => {
     const storage = sessionsModule.memoryStorage();
     const page = openMarkdownPage(storage);
-    page.element('mdInput').value = '# Keep my name';
-    page.element('mdInput').dispatch('input', {});
-    page.element('pageNameInput').value = 'Keep me';
-    page.element('pageNameInput').dispatch('input', {});
+    page.type('mdInput', '# Keep my title');
+    page.typeTitle('Keep me');
 
-    page.element('pageOptionsToggle').dispatch('click', { preventDefault() {} });
-    page.optionItems()[1].dispatch('click', {});
+    page.openOptions();
+    page.selectOption(0);
 
     assert.equal(page.element('mdInput').value, '');
     assert.equal(page.element('mdPreview').innerHTML, '<p></p>');
-    assert.equal(page.storedSession().data.markdown, '');
-    assert.equal(page.storedSession().name, 'Keep me');
+    assert.equal(page.element('charCount').textContent, 0);
+    page.hide();
+    assert.equal(latestVersion(page).content, '', 'the cleared content is versioned');
+    assert.equal(page.titleInput().value, 'Keep me', 'the title is kept');
 });
 
-test('New session opens the next markdown session', () => {
+test('leaving the page snapshots changed markdown and skips unchanged markdown', () => {
+    const storage = sessionsModule.memoryStorage();
+    const page = openMarkdownPage(storage);
+    page.type('mdInput', 'first');
+    page.typeTitle('Notes');
+    assert.equal(page.storedSession().versions.length, 1);
+
+    page.hide();
+    assert.equal(page.storedSession().versions.length, 1, 'unchanged markdown is not snapshotted twice');
+
+    page.type('mdInput', 'second');
+    page.unload();
+    assert.equal(latestVersion(page).content, 'second');
+
+    page.type('mdInput', 'third');
+    page.hide();
+    assert.equal(page.storedSession().versions.length, 3, 'three snapshots are kept');
+});
+
+test('an untitled markdown session with changes is confirmed, a titled one is not', () => {
     const page = openMarkdownPage(sessionsModule.memoryStorage());
-    page.element('pageOptionsToggle').dispatch('click', { preventDefault() {} });
-    page.optionItems()[0].dispatch('click', {});
-    assert.deepEqual(page.window.opened, ['/markdown-editor/2']);
+    assert.equal(page.beforeUnloadProbe(), false, 'an untouched untitled page does not warn');
+
+    page.type('mdInput', 'draft');
+    assert.equal(page.beforeUnloadProbe(), true, 'an untitled session with changes warns');
+
+    page.typeTitle('Notes');
+    page.type('mdInput', 'saved');
+    assert.equal(page.beforeUnloadProbe(), false, 'a titled session is auto-versioned instead');
 });
 
 test('the markdown page shares the header markup instead of duplicating it', () => {

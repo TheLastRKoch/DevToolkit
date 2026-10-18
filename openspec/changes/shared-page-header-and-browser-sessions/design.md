@@ -6,18 +6,17 @@
   pages from `public/` and exposes a template API backed by a process-memory
   `Map` plus a `nextSessionId` counter. There is no build step: `package.json`
   has a single dependency (`express`) and runs tests with `node --test`.
-- Pages involved: `/template` (redirects to `/template/1`, driven by
-  `template.js`), `/editor` (`editor.html`, loads Quill and `template.js`, which
-  returns immediately because the path is not `/template/<id>`), and
+- Pages involved: `/template` (driven by `template.js`), `/text-editor`
+  (`text-editor.html`, loads Quill and `text-editor.js`), and
   `/markdown-editor` (driven by `markdown-editor.js`).
 - Header markup is duplicated three times in three different shapes: `/template`
-  has a breadcrumb plus a title input and three buttons, `/editor` has a
+  has a breadcrumb plus a title input and three buttons, `/text-editor` has a
   breadcrumb plus an Options dropdown, and `/markdown-editor` has only a
   breadcrumb.
-- `/editor` loads Bootstrap's JS bundle, so its dropdown opens, but `template.js`
-  returns immediately on that route, leaving its "Clear variables" and "Clear
-  all" items inert. `/template` has no dropdown at all and does not load
-  Bootstrap's JS bundle.
+- `/text-editor` loads Bootstrap's JS bundle, so its dropdown opens, but
+  `template.js` returns immediately on that route, leaving its "Clear variables"
+  and "Clear all" items inert. `/template` has no dropdown at all and does not
+  load Bootstrap's JS bundle.
 - Existing tests are HTTP-level (`test/routes.test.js`, `test/template.test.js`)
   plus static/mock-DOM assertions in `test/markdown-editor.test.js`; jsdom is not
   available.
@@ -27,11 +26,14 @@
 **Goals:**
 
 - One header item shared by all three pages, configured per page (breadcrumb,
-  options, page name) with no duplicated header markup left behind.
-- A page-name textbox on every session page with the same behavior `/template`
-  has today.
-- Browser-owned session state for all three pages, with a 30-day expiry, that
-  does not depend on server memory.
+  options, title) with no duplicated header markup left behind.
+- A title textbox on every session page with placeholder "DevToolKit", validation
+  (reject default/empty), and immutability (disabled after first save).
+- Conditional browser-owned session persistence: save to `localStorage` only
+  when the user provides a valid custom title. One session per page type.
+- Version history: keep the last 3 content snapshots per titled session using
+  FIFO, captured on visibility change / page unload, with deduplication.
+- Home page gallery showing all saved sessions with kind filters and delete.
 - Keep `/api/template/*` working and its tests passing, and keep old URLs
   (`/editor`) working through a redirect.
 
@@ -39,9 +41,11 @@
 
 - Removing, deprecating, or rewriting the server-side session API and its `Map`.
 - Server-side persistence, accounts, or sharing sessions between users.
+- Multi-session per page or session-ID-based routing.
 - Changing template variable syntax/semantics, the Template/Variables tab
   behavior, or the markdown editor's pane/scroll behavior.
 - Adding a framework, bundler, or template engine.
+- Session expiry — titled sessions persist until explicitly deleted.
 
 ## Decisions
 
@@ -49,9 +53,9 @@
 
 Each page declares `<div id="pageHeader"></div>` after the navbar and loads
 `public/static/scripts/page-header.js`, then calls
-`DevToolkitPageHeader.init({ breadcrumb, options, pageName, onPageNameChange })`.
-The script builds the breadcrumb, the Options dropdown, and the name textbox, and
-keeps the row layout itself so all pages render an identical row. It uses the
+`DevToolkitPageHeader.init({ breadcrumb, options, title, onTitleChange })`.
+The script builds the breadcrumb, the Options dropdown, and the title textbox,
+and keeps the row layout itself so all pages render an identical row. It uses the
 same guarded pattern as the session store: a browser global plus a CommonJS
 export, which keeps it usable from a classic `<script>` tag and testable from
 Node.
@@ -81,56 +85,77 @@ still need its own wiring.
 
 Pages pass an ordered array of `{ id, label, onSelect }`. The header renders
 exactly that list and invokes the page's callback on selection. Page option sets:
-template → New session, Clear variables, Clear all; text editor → New session,
-Clear editor; markdown editor → New session, Clear editor. The text editor drops
-its previous "Clear variables" item because the page has no variables and the
-item was inert.
+template → Clear variables, Clear all; text editor → Clear editor; markdown
+editor → Clear editor. "New session" is removed from all pages because the model
+is single-session-per-page.
 
 ### D4 — Session store as a testable plain module over `localStorage`
 
 `public/static/scripts/browser-session.js` exposes a store factory
-(`openStore(pageType, storage)`) with `get`, `ensure`, `allocateId`, `save`, and
-`remove`-on-expiry. It reads/writes one JSON document per page type at
-`devtoolkit:sessions:<pageType>` shaped `{ version, nextId, sessions }`, where
-each session record is `{ name, updatedAt, expiresAt, data }` and
-`expiresAt = updatedAt + 30 days`. Expired records are dropped on read and on
-write. `data` is page-specific: template → `{ text, variables }`, text editor →
-`{ html }`, markdown editor → `{ markdown }`. The module also exports through a
-guarded CommonJS branch so `node:test` can exercise it with a fake storage
-object, which is how the current tests avoid jsdom.
+(`openStore(kind, storage)`) with `get`, `save`, `remove`, and `listAll`. It
+reads/writes one JSON document per page type at `devtoolkit:sessions:<kind>`
+shaped:
 
-The user's "localStorage with a due date of 30 days" is interpreted as a 30-day
-expiry measured from each session's last modification, refreshed on every write.
+```json
+{
+  "title": "My Custom Title",
+  "kind": "text-editor",
+  "versions": [
+    {
+      "updatedDate": "2026-10-16T11:40:00Z",
+      "content": "Updated content string..."
+    }
+  ]
+}
+```
 
-Alternatives considered: one storage key per session (no atomicity gain at this
-scale, more keys to scan); IndexedDB (async API, unnecessary); `sessionStorage`
-(per-tab, breaks "New session opens in a new tab" and cross-tab continuity).
+For the template page, each version also carries a `variables` field:
 
-### D5 — Session identifiers are allocated in the browser
+```json
+{
+  "title": "Release Notes Template",
+  "kind": "template",
+  "versions": [
+    {
+      "updatedDate": "2026-10-16T12:00:00Z",
+      "content": "Hello @[name], release @[version] is live.",
+      "variables": "@[name]=World\n@[version]=1.0.0"
+    }
+  ]
+}
+```
 
-`nextId` lives in the page's stored document, so New session takes the next free
-identifier without any server call. Server routes only validate
-`^[1-9][0-9]*$` and serve the page shell, so any browser-allocated identifier
-works. Alternative: keep `POST /api/template/sessions` as the allocator — it
-exists only for the template page, would leave unused server sessions behind,
-and contradicts browser ownership of session state.
+**Conditional persistence**: the store writes to `localStorage` only when a
+valid title is provided (non-empty, non-whitespace, not matching "DevToolKit"
+case-insensitively). Sessions without a valid title exist only in-view state.
 
-### D6 — One canonical session URL per page
+**FIFO versioning**: the `versions` array keeps the last 3 snapshots. A new
+version is pushed when the user navigates away (visibility change / page
+unload) and the current content differs from the most recent version (excluding
+`updatedDate`). When a 4th version would be added, the oldest is dropped.
 
-`/text-editor/:sessionId` and `/markdown-editor/:sessionId` are added, and the
-bare `/text-editor` and `/markdown-editor` routes redirect to their `/1` session
-page, mirroring the existing `/template` → `/template/1` behavior. `/editor`
-responds with a permanent redirect to `/text-editor`, which then redirects to
-`/text-editor/1`. `/template/:sessionId` and all `/api/template/*` endpoints keep
-their current contract. Alternative: identify the session in a query string or
-hash to avoid new routes — rejected for consistency with the existing
-`/template/<id>` pattern.
+The module also exports through a guarded CommonJS branch so `node:test` can
+exercise it with a fake storage object, which is how the current tests avoid
+jsdom.
 
-### D7 — "Dirty" means "not yet persisted"
+Alternatives considered: one storage key per session (unnecessary — single
+session per page); IndexedDB (async API, unnecessary); `sessionStorage`
+(per-tab, loses state on tab close).
 
-Pages set a dirty flag on input and clear it once the write to browser storage
-succeeds, so the existing `beforeunload` protection still fires while a write is
-pending or after a write has failed, and stops firing once everything is stored.
+### D6 — Pages serve at their base URL
+
+`/text-editor`, `/markdown-editor`, and `/template` each serve their page
+directly. There are no `/:sessionId` routes — each page type has exactly one
+session. `/editor` responds with a permanent redirect to `/text-editor`.
+`/template` and all `/api/template/*` endpoints keep their current contract.
+
+### D7 — beforeunload protects untitled sessions only
+
+If a session does not have a valid custom title and the editor contains modified
+content, a `beforeunload` confirmation prompt is triggered when attempting to
+close or navigate away from the tab. Titled sessions are automatically persisted
+via the versioning engine on visibility change / page unload, so no
+`beforeunload` warning is needed.
 
 ### D8 — The server session API stays, dormant in the UI
 
@@ -149,51 +174,106 @@ message that changes will not be persisted, instead of failing to load.
 ### D10 — Tests follow the existing node:test style
 
 `test/browser-sessions.test.js` unit-tests the store with a fake storage
-(isolation per page, allocation, 30-day expiry, refresh on write, write
-failure); `test/routes.test.js` gains cases for `/text-editor`, `/text-editor/1`,
-the `/editor` redirect, `/markdown-editor/1`, and invalid identifiers;
+(conditional persistence, title validation, versioning FIFO, deduplication,
+write failure); `test/routes.test.js` gains cases for `/text-editor`, the
+`/editor` redirect, and `/markdown-editor`;
 `test/shared-page-header.test.js` asserts the header module renders the declared
-options and name using the mock-DOM pattern already used for the markdown
+options and title using the mock-DOM pattern already used for the markdown
 editor. Existing `/api/template/*` tests stay as they are.
+
+### D11 — Title validation and immutability
+
+The title textbox displays "DevToolKit" as a placeholder. A title is considered
+valid when it is non-empty, non-whitespace-only, and differs from the default
+placeholder (case-insensitive comparison against "DevToolKit" / "Devtoolkit").
+Once a valid title is saved, the title input field is set to `disabled="true"`
+and cannot be edited for the lifetime of that session. This prevents accidental
+renames and makes the title a stable identifier for the session in the gallery.
+
+### D12 — Conditional persistence
+
+No session data is written to `localStorage` until the user provides a valid
+title. While untitled:
+- Content changes are held in-view only.
+- `beforeunload` fires if there are unsaved changes (D7).
+- The session is not visible in the home page gallery.
+
+Once a valid title is provided:
+- The session is registered with that title.
+- Persistence is enabled: the versioning engine (D4) writes to `localStorage`
+  on visibility change / page unload.
+- The title input is disabled (D11).
+
+### D13 — Version snapshots on visibility change
+
+A version snapshot is evaluated and saved when the user navigates away from the
+tab/window (page unload, tab switch, visibility change). Before saving:
+1. Check if the current content attributes differ from the most recent version
+   in the `versions` array (excluding `updatedDate`).
+2. If identical: no duplicate snapshot is created.
+3. If different: create `{ updatedDate: <ISO-8601>, content, [variables] }`,
+   push to `versions`, drop the oldest entry if `versions.length > 3`.
+4. Write the updated session to `localStorage`.
+
+### D14 — Home page session gallery
+
+The home page (`/`) reads all `devtoolkit:sessions:*` keys from `localStorage`
+and renders saved sessions as gallery cards. The existing gallery data (pieces)
+is replaced by session data:
+
+- **Filters**: replace category buttons with kind buttons (one per session kind:
+  `text-editor`, `markdown-editor`, `template`, plus "All").
+- **Card `<h2>`**: populated with the session's `title`.
+- **Card `<p>`**: populated with the session's `kind` · latest `updatedDate`
+  (formatted as relative or absolute date).
+- **Remove button (×)**: clicking deletes the session from `localStorage` and
+  removes the card from the gallery. This calls `localStorage.removeItem` for
+  the corresponding key.
+- **Search**: filters by title text.
+- **Empty state**: shown when no saved sessions exist.
 
 ## Risks / Trade-offs
 
 - Two session models (server `Map` and browser storage) coexist → pages never
   call the API, the API stays covered by its tests, and the follow-up removal is
   recorded as an open question rather than done here.
-- `localStorage` can be unavailable, full, or cleared by the user → D9 fallback
-  plus an explicit expiry rule; stored work is not durable beyond 30 days by
-  design.
+- `localStorage` can be unavailable, full, or cleared by the user → D9 fallback;
+  stored work persists until explicitly deleted by the user.
 - Quill restores stored HTML, which is attacker-controlled only if the user
   pastes hostile content into their own browser → treat stored content as
   untrusted when importing it into the editor and keep the existing Quill
   configuration rather than evaluating markup.
-- Two tabs on the same session can overwrite each other (no transaction support)
-  → accepted; last write wins, and the conflict is bounded to one user's
-  browser.
-- Pages that rely on Bootstrap's dropdown markup could regress when the header
-  owns the toggle → replace the duplicated markup entirely and assert the header
-  structure in tests.
+- Version snapshots on `visibilitychange` may not fire in all browsers (mobile
+  Safari background kill, process termination) → best-effort; `beforeunload` is
+  used as a secondary trigger. Documented as a known limitation.
+- Deleting a session from the gallery is permanent with no undo → accepted,
+  consistent with the existing "Clear all" behavior. The gallery's × button
+  removes the `localStorage` key immediately.
+- Title immutability means the user cannot rename a session after creating it →
+  accepted as a deliberate simplification; the user can delete and re-create.
 
 ## Migration Plan
 
 1. Add `browser-session.js` and `page-header.js` with their unit tests.
-2. Rename `public/editor.html` to `public/text-editor.html`, add the text editor's
-   page script, and update `server.js` routes, the home page link, and the
-   breadcrumb label.
+2. Rename `public/editor.html` to `public/text-editor.html`, add the text
+   editor's page script, and update `server.js` routes, the home page link, and
+   the breadcrumb label.
 3. Adopt the shared header on all three pages: replace duplicated header markup,
-   move template actions into the dropdown, and add the name textbox to the text
-   editor and markdown editor.
-4. Point each page's name/content at the browser store, leaving
-   `/api/template/*` untouched, then update `docs/template.md`.
+   move template actions into the dropdown, and add the title textbox with
+   validation and immutability.
+4. Point each page's title/content at the browser store with conditional
+   persistence and versioning, leaving `/api/template/*` untouched.
+5. Rewire the home page gallery to read saved sessions from `localStorage`,
+   render kind filters and session cards, and support delete.
 
 Rollback: each step is an independent commit, and because the server API is
-untouched, reverting only steps 3–4 restores the previous server-backed behavior
-without a data migration.
+untouched, reverting steps 3–5 restores the previous behavior without a data
+migration.
 
 ## Open Questions
 
 - Whether the now-dormant `/api/template/*` endpoints should eventually be
   removed once nothing calls them.
-- Whether tabs showing the same session should sync live via the `storage` event.
+- Whether a card in the gallery should link to the corresponding page (e.g.,
+  clicking a template card navigates to `/template`).
 - Which additional pages should adopt the shared header next.
