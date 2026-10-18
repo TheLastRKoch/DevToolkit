@@ -5,7 +5,6 @@ const { openTextEditorPage, readPage, readScript, sessionsModule } = require('./
 
 const textEditorScript = readScript('text-editor.js');
 const textEditorHtml = readPage('text-editor.html');
-const STORAGE_KEY = 'devtoolkit:sessions:text-editor';
 
 function latestVersion(page) {
     const session = page.storedSession();
@@ -36,7 +35,7 @@ test('typed content and title are stored on the browser session', () => {
     const page = openTextEditorPage(storage);
 
     typeInto(page, '<p>Hello <strong>world</strong></p>');
-    assert.equal(storage.getItem(STORAGE_KEY), null, 'untitled work is not stored');
+    assert.equal(sessionsModule.listAll(storage).length, 0, 'untitled work is not stored');
 
     page.typeTitle('Release notes');
     assert.equal(page.document.title, 'Release notes');

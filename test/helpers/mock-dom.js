@@ -136,8 +136,17 @@ function createDom(ids) {
 function createWindow(pathname) {
     const listeners = {};
     const opened = [];
+    const location = { pathname };
+    const history = {
+        replaceState: (state, title, url) => {
+            if (typeof url === 'string' && url.startsWith('/')) {
+                location.pathname = url;
+            }
+        },
+    };
     return {
-        location: { pathname },
+        location,
+        history,
         opened,
         addEventListener: (type, handler) => {
             listeners[type] = listeners[type] || [];

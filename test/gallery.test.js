@@ -13,7 +13,6 @@ const {
 } = require('./helpers/pages.js');
 
 const galleryScript = readScript('gallery.js');
-const STORAGE_KEY = 'devtoolkit:sessions:';
 const DATE = Date.UTC(2026, 9, 16, 12, 0, 0);
 const clock = () => DATE;
 
@@ -97,9 +96,9 @@ test('card titles link to the page for their session kind', () => {
     const page = openGalleryPage(storage);
     const links = page.cards().map(cardOf).map((card) => [card.title, card.titleHref]);
     assert.deepEqual(links.sort(), [
-        ['Draft', '/text-editor'],
-        ['Invoice', '/template'],
-        ['Notes', '/markdown-editor'],
+        ['Draft', '/text-editor/1'],
+        ['Invoice', '/template/1'],
+        ['Notes', '/markdown-editor/1'],
     ].sort());
 });
 
@@ -109,18 +108,85 @@ test('opening a linked page restores the session content saved in the gallery', 
     seedSession(storage, 'markdown-editor', { title: 'Notes', content: '# Raw notes' }, clock);
     seedSession(storage, 'template', { title: 'Invoice', content: 'Hello @[name]', variables: { name: 'Ada' } }, clock);
 
-    const textEditor = openTextEditorPage(storage);
+    const textEditor = openTextEditorPage(storage, { sessionId: 1 });
     assert.equal(textEditor.titleInput().value, 'Draft');
     assert.deepEqual(textEditor.quill.contents, { ops: [{ insert: '<p>Editor body</p>' }] });
 
-    const markdown = openMarkdownPage(storage);
+    const markdown = openMarkdownPage(storage, { sessionId: 1 });
     assert.equal(markdown.titleInput().value, 'Notes');
     assert.equal(markdown.element('mdInput').value, '# Raw notes');
 
-    const template = openTemplatePage(storage);
+    const template = openTemplatePage(storage, { sessionId: 1 });
     assert.equal(template.titleInput().value, 'Invoice');
     assert.equal(template.element('txtInput').value, 'Hello @[name]');
     assert.equal(template.element('txtVariables').value, '@[name]=Ada');
+});
+
+test('multiple sessions of one kind render as distinct cards', () => {
+    const storage = sessionsModule.memoryStorage();
+    const first = seedSession(storage, 'template', { title: 'One', content: '1' }, clock);
+    const second = seedSession(storage, 'template', { title: 'Two', content: '2' }, clock);
+
+    assert.equal(first.getId(), 1);
+    assert.equal(second.getId(), 2);
+
+    const page = openGalleryPage(storage);
+    const cards = page.cards().map(cardOf).map((card) => [card.title, card.titleHref]);
+    assert.deepEqual(cards.sort(), [
+        ['One', '/template/1'],
+        ['Two', '/template/2'],
+    ]);
+});
+
+test('the New menu links to ID-less routes that start fresh sessions', async () => {
+    const res = await fetch(`${baseUrl}/`);
+    const body = await res.text();
+    for (const href of ['/template', '/text-editor', '/markdown-editor']) {
+        assert.ok(body.includes(`href="${href}"`), `the New menu should link to ${href}`);
+    }
+
+    const storage = sessionsModule.memoryStorage();
+    seedSession(storage, 'template', { title: 'Saved', content: 'Saved template' }, clock);
+    const cases = [
+        { kind: 'template', open: openTemplatePage },
+        { kind: 'text-editor', open: openTextEditorPage },
+        { kind: 'markdown-editor', open: openMarkdownPage },
+    ];
+    for (const { kind, open } of cases) {
+        const page = open(storage);
+        assert.equal(page.url(), `/${kind}`);
+        assert.equal(page.sessionId(), null);
+        assert.equal(page.titleInput().value, '', `${kind} New opens an untitled session`);
+    }
+});
+
+test('legacy single-session documents migrate to ID 1 for every kind', () => {
+    const storage = sessionsModule.memoryStorage();
+    const kinds = ['template', 'text-editor', 'markdown-editor'];
+    for (const kind of kinds) {
+        storage.setItem(sessionsModule.sessionKey(kind), JSON.stringify({
+            title: `${kind} legacy`,
+            kind,
+            versions: [{ updatedDate: '2026-10-16T12:00:00.000Z', content: 'legacy' }],
+        }));
+    }
+
+    const page = openGalleryPage(storage);
+    const cards = page.cards().map(cardOf).map((card) => [card.kind, card.title, card.titleHref]);
+    assert.deepEqual(cards.sort(), [
+        ['markdown-editor', 'markdown-editor legacy', '/markdown-editor/1'],
+        ['template', 'template legacy', '/template/1'],
+        ['text-editor', 'text-editor legacy', '/text-editor/1'],
+    ]);
+
+    for (const kind of kinds) {
+        assert.equal(storage.getItem(sessionsModule.sessionKey(kind)), null, 'the legacy key is removed');
+        assert.notEqual(storage.getItem(sessionsModule.sessionKey(kind, 1)), null, 'the session exists at ID 1');
+    }
+
+    const template = openTemplatePage(storage, { sessionId: 1 });
+    assert.equal(template.titleInput().value, 'template legacy');
+    assert.equal(template.element('txtInput').value, 'legacy');
 });
 
 test('filter buttons offer All plus every session kind and filter the gallery', () => {
@@ -160,8 +226,8 @@ test('deleting a card removes the session from storage and the gallery', () => {
 
     page.removeCard(invoiceIndex);
 
-    assert.equal(storage.getItem(`${STORAGE_KEY}template`), null, 'the session is deleted from localStorage');
-    assert.equal(storage.getItem(`${STORAGE_KEY}markdown-editor`) !== null, true, 'other sessions are kept');
+    assert.equal(storage.getItem(sessionsModule.sessionKey('template', 1)), null, 'the session is deleted from localStorage');
+    assert.equal(storage.getItem(sessionsModule.sessionKey('markdown-editor', 1)) !== null, true, 'other sessions are kept');
     assert.deepEqual(page.cards().map((card) => cardOf(card).title), ['Notes']);
     assert.equal(page.element('resultCount').textContent, '1 session');
 });

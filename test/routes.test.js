@@ -74,9 +74,52 @@ test('GET /template returns the template page', async () => {
     assert.ok(body.includes('txtInput'), 'template page should include its editing surface');
 });
 
-test('session identifier routes are gone', async () => {
-    for (const path of ['/text-editor/1', '/markdown-editor/1', '/template/1', '/text-editor/abc']) {
+test('numeric session routes serve their page kind', async () => {
+    for (const path of ['/text-editor/1', '/markdown-editor/2', '/template/3']) {
         const res = await getPage(path);
-        assert.equal(res.status, 404, `${path} should no longer be routed`);
+        assert.equal(res.status, 200, `${path} should resolve`);
     }
+});
+
+test('non-numeric session routes are rejected', async () => {
+    for (const path of ['/text-editor/abc', '/markdown-editor/abc', '/template/abc']) {
+        const res = await getPage(path);
+        assert.equal(res.status, 404, `${path} should be rejected`);
+    }
+});
+
+test('nested session routes use absolute asset URLs', async () => {
+    const pages = [
+        { path: '/text-editor/1', script: '/static/scripts/text-editor.js' },
+        { path: '/markdown-editor/1', script: '/static/scripts/markdown-editor.js' },
+    ];
+
+    for (const { path, script } of pages) {
+        const res = await getPage(path);
+        assert.equal(res.status, 200, `${path} should resolve`);
+        const body = await res.text();
+        assert.ok(body.includes('src="/static/scripts/browser-session.js"'), `${path} should load the store by absolute URL`);
+        assert.ok(body.includes('src="/static/scripts/page-header.js"'), `${path} should load the header by absolute URL`);
+        assert.ok(body.includes(`src="${script}"`), `${path} should load its page script by absolute URL`);
+        assert.ok(body.includes('href="/static/img/favicon.ico"'), `${path} should use an absolute favicon URL`);
+        assert.ok(!body.includes('src="static/scripts/'), `${path} should not use relative script URLs`);
+
+        for (const asset of ['/static/scripts/browser-session.js', '/static/scripts/page-header.js', script, '/static/img/favicon.ico']) {
+            const assetRes = await getPage(asset);
+            assert.equal(assetRes.status, 200, `${asset} should resolve`);
+        }
+    }
+});
+
+test('legacy editor session routes redirect to the text editor route', async () => {
+    const res = await getRedirect('/editor/3');
+    assert.equal(res.status, 301);
+    assert.equal(res.headers.get('location'), '/text-editor/3');
+
+    const followed = await getPage('/editor/3');
+    assert.equal(followed.status, 200);
+    assert.ok((await followed.text()).includes('Text Editor'));
+
+    const invalid = await getPage('/editor/abc');
+    assert.equal(invalid.status, 404);
 });

@@ -125,19 +125,20 @@ test('the shared header renders the same row on every page with its own content'
 test('conditional persistence is title-gated and the saved title is immutable', () => {
     const storage = sessionsModule.memoryStorage();
     const page = openMarkdownPage(storage);
-    const key = 'devtoolkit:sessions:markdown-editor';
 
     page.type('mdInput', '# Draft work');
-    assert.equal(storage.getItem(key), null, 'an untitled session is not persisted');
+    assert.equal(sessionsModule.listAll(storage).length, 0, 'an untitled session is not persisted');
 
     page.typeTitle('DevToolKit');
-    assert.equal(storage.getItem(key), null, 'the default placeholder is not a valid title');
+    assert.equal(sessionsModule.listAll(storage).length, 0, 'the default placeholder is not a valid title');
     page.typeTitle('   ');
-    assert.equal(storage.getItem(key), null, 'a whitespace title is not a valid title');
+    assert.equal(sessionsModule.listAll(storage).length, 0, 'a whitespace title is not a valid title');
     assert.equal(page.titleInput().getAttribute('disabled'), null, 'the title stays editable');
 
     page.typeTitle('W');
     assert.equal(page.titleInput().getAttribute('disabled'), null, 'the first keystroke does not lock the title');
+    assert.equal(page.sessionId(), 1, 'the first valid title allocates ID 1');
+    assert.equal(page.url(), '/markdown-editor/1', 'the URL gains the session ID');
     page.typeTitle('Weekly notes');
     assert.equal(page.titleInput().getAttribute('disabled'), null, 'the title stays editable while focused');
     page.blurTitle();
@@ -150,6 +151,41 @@ test('conditional persistence is title-gated and the saved title is immutable', 
     page.type('pageTitleInput', 'Renamed');
     assert.equal(storedSession(storage, 'markdown-editor').title, 'Weekly notes', 'the saved title cannot be renamed');
     assert.equal(page.document.title, 'Weekly notes', 'a locked title ignores further edits');
+});
+
+test('each page starts fresh at its ID-less route and gains an ID after the first title save', () => {
+    const cases = [
+        { kind: 'template', open: openTemplatePage },
+        { kind: 'text-editor', open: openTextEditorPage },
+        { kind: 'markdown-editor', open: openMarkdownPage },
+    ];
+
+    for (const { kind, open } of cases) {
+        const storage = sessionsModule.memoryStorage();
+        const page = open(storage);
+        assert.equal(page.url(), `/${kind}`, `${kind} starts at its ID-less route`);
+        assert.equal(page.sessionId(), null);
+
+        page.typeTitle(`${kind} session`);
+        assert.equal(page.sessionId(), 1, `${kind} gains ID 1 after the first valid title`);
+        assert.equal(page.url(), `/${kind}/1`, `${kind} updates its URL with the ID`);
+        assert.equal(page.storedSession().title, `${kind} session`);
+    }
+});
+
+test('an unknown session ID opens an empty session and saves under that ID', () => {
+    const storage = sessionsModule.memoryStorage();
+    const page = openTemplatePage(storage, { sessionId: 42 });
+
+    assert.equal(page.sessionId(), 42);
+    assert.equal(page.element('txtInput').value, '', 'an unknown ID opens empty');
+    page.type('txtInput', 'Hello @[name]');
+    page.typeTitle('Late session');
+    page.blurTitle();
+
+    assert.equal(page.sessionId(), 42);
+    assert.equal(page.storedSession().id, 42);
+    assert.equal(page.storedSession().title, 'Late session');
 });
 
 test('versioning creates, deduplicates, and truncates snapshots on visibility change', () => {
@@ -209,8 +245,16 @@ test('the home gallery shows, filters, and deletes sessions saved by the pages',
     assert.deepEqual(titles(), ['Letter']);
 
     gallery.removeCard(0);
-    assert.equal(storage.getItem('devtoolkit:sessions:text-editor'), null, 'the card deletes the session');
-    assert.equal(storage.getItem('devtoolkit:sessions:template') !== null, true, 'the other session is untouched');
+    assert.equal(
+        storage.getItem(sessionsModule.sessionKey('text-editor', textEditor.sessionId())),
+        null,
+        'the card deletes the selected session'
+    );
+    assert.equal(
+        storage.getItem(sessionsModule.sessionKey('template', template.sessionId())) !== null,
+        true,
+        'the other session is untouched'
+    );
     assert.equal(gallery.cards().length, 0);
     assert.equal(gallery.element('emptyState').classList.contains('d-none'), false, 'the gallery falls back to its empty state');
 });

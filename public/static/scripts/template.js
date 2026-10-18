@@ -1,10 +1,11 @@
 /**
  * Template page – DevToolkit
  *
- * The page owns one browser-side session (`devtoolkit:sessions:template`) holding
- * the template text and its variable values. Nothing is written to storage until
- * the user provides a valid title; the session then keeps the last three content
- * snapshots, recorded when the user navigates away from the page.
+ * The page works on one browser-side session at a time, stored at
+ * `devtoolkit:sessions:template:<id>` and holding the template text and its
+ * variable values. Nothing is written to storage until the user provides a valid
+ * title; the session then keeps the last three content snapshots, recorded when
+ * the user navigates away from the page.
  */
 (function () {
     const input = document.getElementById('txtInput');
@@ -18,12 +19,15 @@
     const VARIABLE_LINE_PATTERN = /^@\[([a-zA-Z0-9_-]+)\]=(.*)$/;
     const VARIABLE_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
     const TOKEN_PATTERN = /@\[([a-zA-Z0-9_-]+)\]/g;
+    const KIND = 'template';
 
     let header = null;
     let dirty = false;
     let variables = Object.create(null);
 
-    const store = DevToolkitSessions.openStore('template', DevToolkitSessions.browserStorage(), {
+    const routeSessionId = DevToolkitSessions.sessionIdFromPath(window.location.pathname, KIND);
+    const store = DevToolkitSessions.openStore(KIND, DevToolkitSessions.browserStorage(), {
+        sessionId: routeSessionId,
         onWriteError: () => {
             if (header) {
                 header.warn('Changes will not be persisted in this browser.');
@@ -122,13 +126,27 @@
         }
     }
 
+    function updateSessionUrl(saved) {
+        if (!saved || !saved.persisted || saved.id === null || saved.id === undefined) {
+            return;
+        }
+        const path = DevToolkitSessions.pagePath(KIND, saved.id);
+        if (window.location.pathname === path) {
+            return;
+        }
+        if (window.history && typeof window.history.replaceState === 'function') {
+            window.history.replaceState(null, '', path);
+        }
+    }
+
     function onTitleChange(value) {
         dirty = true;
-        store.save({ title: value });
+        const saved = store.save({ title: value });
         if (!store.isTitled()) {
             return;
         }
         snapshot();
+        updateSessionUrl(saved);
     }
 
     function protectUnsavedWork(event) {

@@ -1,9 +1,10 @@
 # Editing pages
 
-All DevToolkit editing pages are session based: each page owns exactly one
-session in the browser at `/template`, `/text-editor`, and `/markdown-editor`.
-No session identifier is part of the URL; the legacy `/editor` route redirects
-permanently to `/text-editor`.
+All DevToolkit editing pages are session based. Each page kind can keep many
+saved sessions: `/<kind>` starts a new untitled session and `/<kind>/<id>` opens
+the saved session with that numeric ID. The legacy `/editor` route redirects
+permanently to `/text-editor`, and `/editor/<id>` redirects to
+`/text-editor/<id>`.
 
 ## Shared page header
 
@@ -63,14 +64,24 @@ Every page stores its session through
 `public/static/scripts/browser-session.js`:
 
 ```js
-const store = DevToolkitSessions.openStore('template', DevToolkitSessions.browserStorage());
+const routeId = DevToolkitSessions.sessionIdFromPath(window.location.pathname, 'template');
+const store = DevToolkitSessions.openStore('template', DevToolkitSessions.browserStorage(), {
+    sessionId: routeId,
+});
 const session = store.get();
 const stored = store.content();
 ```
 
-- One stored document per page type at `devtoolkit:sessions:<kind>`, shaped
-  `{ title, kind, versions }`, so the template page, the text editor, and the
-  markdown editor never share state.
+- Each saved session is stored at `devtoolkit:sessions:<kind>:<id>` and shaped
+  `{ id, title, kind, versions }`. A page kind can keep many sessions, and kinds
+  never share state.
+- The next numeric ID comes from `devtoolkit:session-counters:<kind>`. IDs are
+  monotonic per kind and are not reused after a session is deleted.
+- Opening a store without `sessionId` starts an untitled session. The first
+  valid title save allocates the ID, writes the session, and the page replaces
+  the URL with `/<kind>/<id>`.
+- A legacy document at `devtoolkit:sessions:<kind>` is migrated to
+  `devtoolkit:sessions:<kind>:1` on first access, and the legacy key is removed.
 - `save({ title, content, variables })` stages the page's state in the session
   and writes to `localStorage` **only** when the session has a valid custom
   title. Untitled work stays in the page view.
@@ -81,9 +92,9 @@ const stored = store.content();
   `{ updatedDate, content }`; template versions also carry `variables`.
 - `content()` returns the staged content, falling back to the most recent
   snapshot, which is how a page restores its title and content on load.
-- `listAll()` (also exported as `DevtoolkitSessions.listAll(storage)`) returns
-  `{ kind, title, latestDate }` per stored session for the home page gallery.
-- `remove()` drops the session from storage and the page view.
+- `listAll()` (also exported as `DevToolkitSessions.listAll(storage)`) returns
+  `{ id, kind, title, latestDate }` per stored session for the home page gallery.
+- `remove()` drops the current session from storage and the page view.
 - When storage is unavailable or a write fails, the change stays visible in the
   current page view, `store.isPersisted()` becomes `false`, and the header shows
   that changes will not be persisted.
@@ -93,31 +104,36 @@ const stored = store.content();
 
 ## Template page
 
-`/template` keeps the Template and Variables tabs and the rendered output. Its
-options are **Clear variables** and **Clear all**.
+`/template` starts a new template session; `/template/<id>` reopens a saved one.
+It keeps the Template and Variables tabs and the rendered output. Its options are
+**Clear variables** and **Clear all**.
 
 ## Text editor page
 
-`/text-editor` presents a Quill rich-text editor. It is reached from the home
-page and from the legacy `/editor` route, which redirects permanently. Its only
-option is **Clear editor**; the stored content is imported through Quill's
-clipboard conversion, which normalizes it as untrusted markup.
+`/text-editor` presents a Quill rich-text editor and starts a new session;
+`/text-editor/<id>` reopens a saved one. It is reached from the home page and
+from the legacy `/editor` routes, which redirect permanently. Its only option is
+**Clear editor**; the stored content is imported through Quill's clipboard
+conversion, which normalizes it as untrusted markup.
 
 ## Markdown editor page
 
-`/markdown-editor` keeps the raw markdown pane and the rendered preview. Its
-only option is **Clear editor**.
+`/markdown-editor` starts a new session; `/markdown-editor/<id>` reopens a saved
+one. It keeps the raw markdown pane and the rendered preview. Its only option is
+**Clear editor**.
 
 ## Home page gallery
 
 `/` lists every stored session as a card showing the session title and
-`kind · latest updated date`. The title links to the page for that session
-(`/text-editor`, `/markdown-editor`, or `/template`), which restores the saved
-content — the editor text, the raw markdown, or the template text and variables.
-The filter buttons offer All plus one button per session kind (`text-editor`,
-`markdown-editor`, `template`), the search box filters by title, the × button
-deletes that session from `localStorage`, and an empty state is shown when
-nothing is saved.
+`kind · latest updated date`. Each card's title links to `/<kind>/<id>`, which
+restores that session's content — the editor text, the raw markdown, or the
+template text and variables. Multiple sessions of one kind appear as separate
+cards. The filter buttons offer All plus one button per session kind
+(`text-editor`, `markdown-editor`, `template`), the search box filters by title,
+the × button deletes only that session's `devtoolkit:sessions:<kind>:<id>` key,
+and an empty state is shown when nothing is saved. The New dropdown links to the
+ID-less `/<kind>` routes, so it always starts a fresh session rather than opening
+a saved one.
 
 ## Page sessions and the server API
 

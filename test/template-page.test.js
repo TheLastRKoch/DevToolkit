@@ -25,7 +25,7 @@ test('template text, variables, and title are stored on the browser session', ()
     const page = openTemplatePage(storage);
 
     page.type('txtInput', 'Hello @[name]');
-    assert.equal(storage.getItem('devtoolkit:sessions:template'), null, 'untitled work stays in the page view');
+    assert.equal(sessionsModule.listAll(storage).length, 0, 'untitled work stays in the page view');
 
     page.typeTitle('Release notes');
     assert.equal(page.document.title, 'Release notes');
@@ -58,7 +58,7 @@ test('a later page load restores the stored template session', () => {
     first.typeTitle('Release notes');
     first.hide();
 
-    const reloaded = openTemplatePage(storage);
+    const reloaded = openTemplatePage(storage, { sessionId: first.sessionId() });
     assert.equal(reloaded.element('txtInput').value, 'Hello @[name]');
     assert.equal(reloaded.element('txtVariables').value, '@[name]=Ada');
     assert.equal(reloaded.titleInput().value, 'Release notes');

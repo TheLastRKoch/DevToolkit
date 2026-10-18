@@ -1,7 +1,7 @@
 /**
  * Home page session gallery – DevToolkit
  *
- * Reads every session saved in `localStorage` under `devtoolkit:sessions:<kind>`
+ * Reads every session saved in `localStorage` under `devtoolkit:sessions:<kind>:<id>`
  * and renders one card per session, with kind filters, title search, per-session
  * delete, and an empty state when nothing is saved.
  *
@@ -26,8 +26,9 @@
         template: '/template',
     };
 
-    function pageHref(kind) {
-        return PAGE_BY_KIND[kind] || '/';
+    function pageHref(kind, id) {
+        const base = PAGE_BY_KIND[kind];
+        return base && id !== undefined && id !== null ? `${base}/${id}` : '/';
     }
 
     function create(doc, tag, attributes, text) {
@@ -135,7 +136,7 @@
             const title = create(doc, 'h2', { class: 'h6 fw-semibold mb-1' });
             title.appendChild(create(doc, 'a', {
                 class: 'link-body-emphasis text-decoration-none',
-                href: pageHref(session.kind),
+                href: pageHref(session.kind, session.id),
             }, session.title));
             text.appendChild(title);
             const date = formatDate(session.latestDate);
@@ -144,7 +145,8 @@
             const remove = create(doc, 'button', {
                 type: 'button',
                 class: 'btn btn-sm btn-danger remove-btn',
-                'data-remove': session.kind,
+                'data-remove-kind': session.kind,
+                'data-remove-id': session.id,
                 'aria-label': `Remove ${session.title}`,
             }, '\u00d7');
 
@@ -168,10 +170,13 @@
             els.gallery.classList.toggle('d-none', empty);
         }
 
-        /** Removes the session from storage and from the gallery. */
-        function removeSession(kind) {
+        /** Removes the session with the given kind and ID from storage. */
+        function removeSession(kind, id) {
+            const key = sessions && typeof sessions.sessionKey === 'function'
+                ? sessions.sessionKey(kind, id)
+                : `${STORAGE_PREFIX}${kind}:${id}`;
             if (storage && typeof storage.removeItem === 'function') {
-                storage.removeItem(STORAGE_PREFIX + kind);
+                storage.removeItem(key);
             }
             renderGallery();
         }
@@ -209,10 +214,13 @@
 
         els.gallery.addEventListener('click', (event) => {
             const button = event && typeof event.target.closest === 'function'
-                ? event.target.closest('[data-remove]')
+                ? event.target.closest('[data-remove-kind]')
                 : null;
             if (button) {
-                removeSession(button.getAttribute('data-remove'));
+                removeSession(
+                    button.getAttribute('data-remove-kind'),
+                    button.getAttribute('data-remove-id'),
+                );
             }
         });
 

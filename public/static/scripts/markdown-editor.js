@@ -121,10 +121,13 @@
     });
 
     // ── Browser session and shared page header ───────────────────────────────
+    const KIND = 'markdown-editor';
     let header = null;
     let dirty = false;
 
-    const store = DevToolkitSessions.openStore('markdown-editor', DevToolkitSessions.browserStorage(), {
+    const routeSessionId = DevToolkitSessions.sessionIdFromPath(window.location.pathname, KIND);
+    const store = DevToolkitSessions.openStore(KIND, DevToolkitSessions.browserStorage(), {
+        sessionId: routeSessionId,
         onWriteError: () => {
             if (header) {
                 header.warn('Changes will not be persisted in this browser.');
@@ -147,13 +150,27 @@
         }
     }
 
+    function updateSessionUrl(saved) {
+        if (!saved || !saved.persisted || saved.id === null || saved.id === undefined) {
+            return;
+        }
+        const path = DevToolkitSessions.pagePath(KIND, saved.id);
+        if (window.location.pathname === path) {
+            return;
+        }
+        if (window.history && typeof window.history.replaceState === 'function') {
+            window.history.replaceState(null, '', path);
+        }
+    }
+
     function onTitleChange(value) {
         dirty = true;
-        store.save({ title: value });
+        const saved = store.save({ title: value });
         if (!store.isTitled()) {
             return;
         }
         snapshot();
+        updateSessionUrl(saved);
     }
 
     function protectUnsavedWork(event) {

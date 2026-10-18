@@ -84,22 +84,41 @@ app.get('/', (req, res) => {
 });
 
 /**
- * Every editing page serves its own page directly: each page type owns exactly
- * one browser-side session, so no session identifier is part of the URL.
+ * ID-less page routes start a fresh browser-side session; numeric-ID routes
+ * open the saved session with that ID.
  */
 function servePage(fileName) {
     return (req, res) => res.sendFile(path.join(__dirname, 'public', fileName));
 }
 
+function serveSessionPage(fileName) {
+    return (req, res) => {
+        if (!/^[1-9][0-9]*$/.test(req.params.id)) {
+            return res.sendStatus(404);
+        }
+        return res.sendFile(path.join(__dirname, 'public', fileName));
+    };
+}
+
 app.get('/template', servePage('template.html'));
+app.get('/template/:id', serveSessionPage('template.html'));
 
 app.get('/editor', (req, res) => {
     res.redirect(301, '/text-editor');
 });
 
+app.get('/editor/:id', (req, res) => {
+    if (!/^[1-9][0-9]*$/.test(req.params.id)) {
+        return res.sendStatus(404);
+    }
+    return res.redirect(301, `/text-editor/${req.params.id}`);
+});
+
 app.get('/text-editor', servePage('text-editor.html'));
+app.get('/text-editor/:id', serveSessionPage('text-editor.html'));
 
 app.get('/markdown-editor', servePage('markdown-editor.html'));
+app.get('/markdown-editor/:id', serveSessionPage('markdown-editor.html'));
 
 app.post('/api/template/sessions', (req, res) => {
     const session = createSession();

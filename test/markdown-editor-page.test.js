@@ -33,7 +33,7 @@ test('markdown text and title are stored on the browser session', () => {
     page.type('mdInput', '# Notes');
     assert.equal(page.element('mdPreview').innerHTML, '<p># Notes</p>');
     assert.equal(page.element('charCount').textContent, 7);
-    assert.equal(storage.getItem('devtoolkit:sessions:markdown-editor'), null, 'untitled work is not stored');
+    assert.equal(sessionsModule.listAll(storage).length, 0, 'untitled work is not stored');
 
     page.typeTitle('Scratch pad');
     assert.equal(page.document.title, 'Scratch pad');
@@ -55,7 +55,7 @@ test('a later load restores the stored markdown session', () => {
     first.typeTitle('Notes');
     first.hide();
 
-    const reloaded = openMarkdownPage(storage);
+    const reloaded = openMarkdownPage(storage, { sessionId: first.sessionId() });
     assert.equal(reloaded.element('mdInput').value, '## Remember me');
     assert.equal(reloaded.element('mdPreview').innerHTML, '<p>## Remember me</p>');
     assert.equal(reloaded.titleInput().value, 'Notes');

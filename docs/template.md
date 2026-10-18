@@ -1,8 +1,10 @@
 # Dynamic template sessions
 
-Open `/template` to work on the template page's single session. Its text,
-variables, and title live in this browser's `localStorage` under
-`devtoolkit:sessions:template`, not in the server process.
+Open `/template` to start a new template session, or `/template/<id>` to reopen
+a saved one. Its text, variables, and title live in this browser's
+`localStorage` under `devtoolkit:sessions:template:<id>`, not in the server
+process. A fresh session receives its numeric ID on the first valid title save,
+and the URL changes to `/template/<id>`.
 
 - Nothing is stored until the session has a **valid custom title** (non-empty,
   not whitespace, not the `DevToolKit` placeholder). Untitled work stays in the
@@ -10,7 +12,8 @@ variables, and title live in this browser's `localStorage` under
   “Leave site?” confirmation.
 - Once titled, the session survives page reloads, browser restarts, and
   application server restarts without any request to the server, and the title
-  textbox is disabled so the session cannot be renamed.
+  textbox is disabled so the session cannot be renamed. Saved sessions are
+  addressed as `/template/<id>`; legacy single-session data is migrated to ID 1.
 - The session keeps the last three content snapshots. A snapshot is recorded
   when you leave the tab (or the page unloads) and the template text or the
   variable values changed since the most recent one; unchanged content is not
@@ -61,4 +64,6 @@ The session controls live in the header's Options menu:
 - **Clear variables**: Removes all variable values while preserving the template text.
 - **Clear all**: Resets both template text and all variables.
 - **Title**: The header textbox updates the browser tab title and is stored as the
-  session's title, so it is restored on reload; a saved title is disabled.
+  session's title, so it is restored on reload; a saved title is disabled. The
+  first valid title save assigns the session ID and updates the URL to
+  `/template/<id>`.

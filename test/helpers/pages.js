@@ -36,14 +36,27 @@ function sessionGlobals({ storage, clock }) {
     });
 }
 
-function storedSession(storage, kind) {
-    const raw = storage.getItem(sessionsModule.sessionKey(kind));
+function storedSession(storage, kind, id) {
+    let targetId = id;
+    if (targetId === undefined || targetId === null) {
+        const matches = sessionsModule.listAll(storage).filter((session) => session.kind === kind);
+        if (matches.length !== 1) {
+            return null;
+        }
+        targetId = matches[0].id;
+    }
+    const raw = storage.getItem(sessionsModule.sessionKey(kind, targetId));
     return raw ? JSON.parse(raw) : null;
 }
 
 /** Seeds a stored, titled session so a page load can restore it. */
-function seedSession(storage, kind, { title, content, variables }, clock) {
-    const store = sessionsModule.openStore(kind, storage, clock ? { now: clock } : {});
+function seedSession(storage, kind, { title, content, variables }, clock, id) {
+    const options = Object.assign(
+        {},
+        clock ? { now: clock } : {},
+        id === undefined || id === null ? {} : { sessionId: id },
+    );
+    const store = sessionsModule.openStore(kind, storage, options);
     store.save({ title, content, variables });
     store.snapshot();
     return store;
@@ -51,11 +64,14 @@ function seedSession(storage, kind, { title, content, variables }, clock) {
 
 function pageHarness({ dom, window, kind, storage }) {
     const headerElement = () => dom.document.getElementById('pageHeader').children[0];
+    const sessionId = () => sessionsModule.sessionIdFromPath(window.location.pathname, kind);
 
     return {
         document: dom.document,
         element: (id) => dom.document.getElementById(id),
         headerElement,
+        sessionId,
+        url: () => window.location.pathname,
         titleInput: () => dom.document.getElementById('pageTitleInput'),
         optionItems: () => dom.document.getElementById('pageOptionsMenu').children.map((item) => item.children[0]),
         openOptions: () => dom.document.getElementById('pageOptionsToggle').dispatch('click', { preventDefault() {} }),
@@ -97,13 +113,13 @@ function pageHarness({ dom, window, kind, storage }) {
             });
             return prevented;
         },
-        storedSession: () => storedSession(storage, kind),
+        storedSession: () => storedSession(storage, kind, sessionId()),
     };
 }
 
-function buildHarness({ ids, script, globals, storage, kind, clock }) {
+function buildHarness({ ids, script, globals, storage, kind, clock, sessionId }) {
     const dom = createDom(ids.concat(['pageHeader']));
-    const window = createWindow('/' + kind);
+    const window = createWindow(sessionsModule.pagePath(kind, sessionId));
     window.requestAnimationFrame = (cb) => cb();
     runScript(script, {
         document: dom.document,
@@ -116,23 +132,25 @@ function buildHarness({ ids, script, globals, storage, kind, clock }) {
     return pageHarness({ dom, window, kind, storage });
 }
 
-function openTemplatePage(storage, { clock } = {}) {
+function openTemplatePage(storage, { clock, sessionId } = {}) {
     return buildHarness({
         ids: ['txtInput', 'txtOutput', 'txtVariables', 'variablesPanel', 'templatePanel', 'templateTab', 'variablesTab', 'currentYear'],
         script: readScript('template.js'),
         storage,
         clock,
+        sessionId,
         kind: 'template',
         globals: {},
     });
 }
 
-function openMarkdownPage(storage, { clock } = {}) {
+function openMarkdownPage(storage, { clock, sessionId } = {}) {
     return buildHarness({
         ids: ['mdInput', 'mdPreview', 'charCount', 'btnExpandEditor', 'btnExpandPreview', 'rawPane', 'previewPane', 'paneDivider', 'paneDividerMobile', 'currentYear'],
         script: readScript('markdown-editor.js'),
         storage,
         clock,
+        sessionId,
         kind: 'markdown-editor',
         globals: { marked: { parse: (text) => `<p>${text}</p>` } },
     });
@@ -172,10 +190,12 @@ function createQuillStub() {
     return { Quill, instances, conversions };
 }
 
-function openTextEditorPage(storage, { clock, initialHtml, title } = {}) {
+function openTextEditorPage(storage, { clock, initialHtml, title, sessionId } = {}) {
     const seeded = title || initialHtml !== undefined ? { title: title || 'Restored session', content: initialHtml || '' } : null;
+    let targetId = sessionId;
     if (seeded) {
-        seedSession(storage, 'text-editor', seeded, clock);
+        const store = seedSession(storage, 'text-editor', seeded, clock, targetId);
+        targetId = store.getId();
     }
     const quillStub = createQuillStub();
     const page = buildHarness({
@@ -183,6 +203,7 @@ function openTextEditorPage(storage, { clock, initialHtml, title } = {}) {
         script: readScript('text-editor.js'),
         storage,
         clock,
+        sessionId: targetId,
         kind: 'text-editor',
         globals: { Quill: quillStub.Quill },
     });
