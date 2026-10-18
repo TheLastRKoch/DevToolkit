@@ -60,52 +60,62 @@ The application SHALL provide separate operations to clear all variable keys and
 
 ### Requirement: Template sessions use isolated incremental routes
 
-The application SHALL identify each browser template session with an incrementing numeric route such as `/template/1` and SHALL keep each session's variables and template state isolated in memory.
+The application SHALL store the template session's variables and template state in browser-local storage at `devtoolkit:sessions:template`, isolated from other page sessions. Persistence SHALL be conditional on the user providing a valid custom title.
 
 #### Scenario: Open a new session
 
-- **WHEN** a user activates the new-session control
-- **THEN** the application creates the next session identifier and opens a new browser tab at its corresponding `/template/<session-id>` route
+- **WHEN** a user accesses the template session
+- **THEN** the application maintains a single browser-local session for the template page
 
 #### Scenario: Keep sessions isolated
 
-- **WHEN** a user edits variables or template text in one session
-- **THEN** those changes do not alter the state rendered in another session
+- **WHEN** a user edits variables or template text in the template session
+- **THEN** those changes do not alter the state rendered in other page sessions
 
 #### Scenario: Restore a routed session
 
-- **WHEN** a user navigates directly to a valid `/template/<session-id>` route during the server process lifetime
-- **THEN** the application serves that session's template page and its existing in-memory state, or initializes that session if it has not been used
+- **WHEN** a user navigates to `/template` at any time after the server process has restarted
+- **THEN** the application serves the template page and restores its stored state from browser storage if a valid titled session exists, or initializes an empty session if no stored state is found
 
 ### Requirement: The template header controls the document title
 
-The template interface SHALL display a text input labeled `Title` in the top-left header area, and editing it SHALL update the page's HTML `document.title`.
+The template interface SHALL display the shared page header's title textbox with placeholder "DevToolKit", and editing it SHALL update the page's HTML `document.title` and store the title on the current template session when valid. Once the title textbox loses focus with a valid title, the title input SHALL be disabled.
 
 #### Scenario: Update the browser title
 
-- **WHEN** a user changes the Title input
+- **WHEN** a user changes the title textbox
 - **THEN** the browser tab title changes to the input's current value
 
 #### Scenario: Keep title edits session-scoped
 
-- **WHEN** a user edits the title in one template session
-- **THEN** the title state for another session is not changed
+- **WHEN** a user edits the title in the template session
+- **THEN** the title state for other page sessions is not changed
+
+#### Scenario: Restore the title after reload
+
+- **WHEN** a user reloads a template session after saving a valid title
+- **THEN** the title textbox shows the stored title (disabled) and the browser tab title shows the stored title
 
 ### Requirement: The application warns before losing unsaved changes
 
-The application SHALL track edits to template text, variable values, and the document title, and SHALL register a browser `beforeunload` handler that requests the native unsaved-changes confirmation when the active session is dirty.
+The application SHALL track edits to template text, variable values, and the document title. When the template session has no valid custom title and the session is dirty, the application SHALL register a browser `beforeunload` handler that requests the native unsaved-changes confirmation. A titled session SHALL NOT trigger `beforeunload` because its content is versioned automatically on navigate-away.
 
 #### Scenario: Warn when closing or leaving with edits
 
-- **WHEN** a user closes, refreshes, or navigates away from a page after making an unsaved edit
+- **WHEN** a user closes, refreshes, or navigates away from an untitled template session after making an unsaved edit
 - **THEN** the browser receives a `beforeunload` request and displays its native confirmation prompt, such as `Leave site? Changes you made may not be saved.`
 
 #### Scenario: Do not warn when clean
 
-- **WHEN** a user leaves the page without changing template text, variables, or the title
+- **WHEN** a user leaves an untitled template session without changing template text, variables, or the title
 - **THEN** the application does not request a `beforeunload` confirmation
 
 #### Scenario: Track all supported edit sources
 
-- **WHEN** the user changes template text, a variable value, or the Title input
+- **WHEN** the user changes template text, a variable value, or the title input
 - **THEN** the active session becomes dirty until its state is cleared or otherwise saved according to the application's session behavior
+
+#### Scenario: Titled session does not warn
+
+- **WHEN** a user leaves a titled template session (modified or not)
+- **THEN** the application does not request a `beforeunload` confirmation
