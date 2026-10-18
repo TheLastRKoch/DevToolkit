@@ -129,9 +129,6 @@
             return;
         }
         snapshot();
-        if (store.isPersisted()) {
-            header.lockTitle();
-        }
     }
 
     function protectUnsavedWork(event) {
@@ -181,7 +178,6 @@
 
     header = DevToolkitPageHeader.initPageHeader({
         mount: document.getElementById('pageHeader'),
-        breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Template' }],
         title: session.title,
         persisted: store.isPersisted(),
         onTitleChange,

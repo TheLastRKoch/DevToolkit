@@ -12,7 +12,8 @@
 - Header markup is duplicated three times in three different shapes: `/template`
   has a breadcrumb plus a title input and three buttons, `/text-editor` has a
   breadcrumb plus an Options dropdown, and `/markdown-editor` has only a
-  breadcrumb.
+  breadcrumb. This change keeps the options and title but drops the breadcrumb
+  from every page.
 - `/text-editor` loads Bootstrap's JS bundle, so its dropdown opens, but
   `template.js` returns immediately on that route, leaving its "Clear variables"
   and "Clear all" items inert. `/template` has no dropdown at all and does not
@@ -25,15 +26,17 @@
 
 **Goals:**
 
-- One header item shared by all three pages, configured per page (breadcrumb,
-  options, title) with no duplicated header markup left behind.
+- One header item shared by all three pages, configured per page (options,
+  title) with no duplicated header markup or breadcrumb left behind.
 - A title textbox on every session page with placeholder "DevToolKit", validation
-  (reject default/empty), and immutability (disabled after first save).
+  (reject default/empty), and immutability (disabled after the textbox loses
+  focus with a valid title).
 - Conditional browser-owned session persistence: save to `localStorage` only
   when the user provides a valid custom title. One session per page type.
 - Version history: keep the last 3 content snapshots per titled session using
   FIFO, captured on visibility change / page unload, with deduplication.
-- Home page gallery showing all saved sessions with kind filters and delete.
+- Home page gallery showing all saved sessions with kind filters, title links
+  that reopen each session's page, and delete.
 - Keep `/api/template/*` working and its tests passing, and keep old URLs
   (`/editor`) working through a redirect.
 
@@ -53,12 +56,12 @@
 
 Each page declares `<div id="pageHeader"></div>` after the navbar and loads
 `public/static/scripts/page-header.js`, then calls
-`DevToolkitPageHeader.init({ breadcrumb, options, title, onTitleChange })`.
-The script builds the breadcrumb, the Options dropdown, and the title textbox,
-and keeps the row layout itself so all pages render an identical row. It uses the
-same guarded pattern as the session store: a browser global plus a CommonJS
-export, which keeps it usable from a classic `<script>` tag and testable from
-Node.
+`DevToolkitPageHeader.init({ options, title, onTitleChange })`.
+The script builds the Options dropdown and the title textbox, and keeps the row
+layout itself so all pages render an identical row without a breadcrumb. It
+uses the same guarded pattern as the session store: a browser global plus a
+CommonJS export, which keeps it usable from a classic `<script>` tag and testable
+from Node.
 
 Alternatives considered: ES modules — the app has no build step, and the repo's
 tests exercise page scripts by evaluating them in a `new Function` sandbox with
@@ -80,6 +83,16 @@ from the header's correctness, and lets the header's toggle be tested without
 Bootstrap. Alternative: rely on `bootstrap.bundle.min.js` with `data-bs-toggle` —
 the behavior would depend on a script only some pages load, and each page would
 still need its own wiring.
+
+### D1c — Desktop header alignment
+
+On desktop viewports (`md` and wider) the header row uses three equal columns:
+an empty leading column, the Options dropdown centered in the middle column, and
+the title textbox right-aligned in the trailing column. Below `md`, the leading
+column is hidden and the title textbox and dropdown collapse into the existing
+end-aligned group, with the title first and the dropdown after it. This centers
+the dropdown without duplicating the controls or changing smaller-screen
+behavior.
 
 ### D3 — Options are data owned by each page
 
@@ -186,9 +199,11 @@ editor. Existing `/api/template/*` tests stay as they are.
 The title textbox displays "DevToolKit" as a placeholder. A title is considered
 valid when it is non-empty, non-whitespace-only, and differs from the default
 placeholder (case-insensitive comparison against "DevToolKit" / "Devtoolkit").
-Once a valid title is saved, the title input field is set to `disabled="true"`
-and cannot be edited for the lifetime of that session. This prevents accidental
-renames and makes the title a stable identifier for the session in the gallery.
+The input stays editable while focused, even after the value becomes valid, so
+the user can type the complete title. When the input loses focus with a valid
+title, it is set to `disabled="true"` and cannot be edited for the lifetime of
+that session. This prevents accidental renames and makes the title a stable
+identifier for the session in the gallery.
 
 ### D12 — Conditional persistence
 
@@ -202,7 +217,7 @@ Once a valid title is provided:
 - The session is registered with that title.
 - Persistence is enabled: the versioning engine (D4) writes to `localStorage`
   on visibility change / page unload.
-- The title input is disabled (D11).
+- The title input is disabled once it loses focus with a valid title (D11).
 
 ### D13 — Version snapshots on visibility change
 
@@ -223,14 +238,17 @@ is replaced by session data:
 
 - **Filters**: replace category buttons with kind buttons (one per session kind:
   `text-editor`, `markdown-editor`, `template`, plus "All").
-- **Card `<h2>`**: populated with the session's `title`.
+- **Card `<h2>`**: populated with the session's `title` as a link to its page
+  (`/text-editor`, `/markdown-editor`, or `/template`). The target page restores
+  the session's stored content on load, including template text and variables.
 - **Card `<p>`**: populated with the session's `kind` · latest `updatedDate`
   (formatted as relative or absolute date).
 - **Remove button (×)**: clicking deletes the session from `localStorage` and
   removes the card from the gallery. This calls `localStorage.removeItem` for
   the corresponding key.
 - **Search**: filters by title text.
-- **Empty state**: shown when no saved sessions exist.
+- **Empty state**: shown when no saved sessions exist, as a text-only message
+  with no folder icon or other decorative icon.
 
 ## Risks / Trade-offs
 
@@ -256,15 +274,14 @@ is replaced by session data:
 
 1. Add `browser-session.js` and `page-header.js` with their unit tests.
 2. Rename `public/editor.html` to `public/text-editor.html`, add the text
-   editor's page script, and update `server.js` routes, the home page link, and
-   the breadcrumb label.
+   editor's page script, and update `server.js` routes and the home page link.
 3. Adopt the shared header on all three pages: replace duplicated header markup,
    move template actions into the dropdown, and add the title textbox with
    validation and immutability.
 4. Point each page's title/content at the browser store with conditional
    persistence and versioning, leaving `/api/template/*` untouched.
 5. Rewire the home page gallery to read saved sessions from `localStorage`,
-   render kind filters and session cards, and support delete.
+   render kind filters and session cards with title links, and support delete.
 
 Rollback: each step is an independent commit, and because the server API is
 untouched, reverting steps 3–5 restores the previous behavior without a data
@@ -274,6 +291,4 @@ migration.
 
 - Whether the now-dormant `/api/template/*` endpoints should eventually be
   removed once nothing calls them.
-- Whether a card in the gallery should link to the corresponding page (e.g.,
-  clicking a template card navigates to `/template`).
 - Which additional pages should adopt the shared header next.

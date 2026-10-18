@@ -26,7 +26,8 @@ This change introduces four capabilities to the DevToolkit web application:
 4. **Home page session gallery** – The home page gallery displays all saved
    sessions from `localStorage`. Filters are replaced with session kinds
    (text-editor, markdown-editor, template). Each card shows the session title,
-   kind, and latest change date. A remove button on each card deletes that
+   kind, and latest change date; the title links to the session's page, which
+   opens with the saved content. A remove button on each card deletes that
    session from storage.
 
 ## Why
@@ -67,7 +68,8 @@ This change introduces four capabilities to the DevToolkit web application:
 * Implementing conditional `localStorage` persistence: only when a valid
   custom title is provided (non-empty, non-default).
 * Title validation (reject "DevToolKit" case-insensitive, empty, whitespace)
-  and title immutability (disabled input after first save).
+  and title immutability (the input stays editable while focused and is disabled
+  after it loses focus with a valid title).
 * A versioning engine that keeps the last 3 content snapshots per session,
   captured on visibility change / page unload, with deduplication.
 * A single-session-per-page data model: one `localStorage` key per page type
@@ -77,7 +79,8 @@ This change introduces four capabilities to the DevToolkit web application:
 * Updating the `/template` page UI to include a variable-definition area and
   a live-rendered output panel.
 * Home page gallery reading saved sessions from `localStorage`, with kind
-  filters and per-session delete.
+  filters, title links that open the session's page with its stored content, and
+  per-session delete.
 
 ### Out of Scope
 
@@ -90,23 +93,26 @@ This change introduces four capabilities to the DevToolkit web application:
 
 ### New Capabilities
 
-- `shared-page-header`: one shared breadcrumb + options dropdown + title
-  textbox item that pages import and configure, including each page's option
-  set and the title behavior (validation, immutability).
+- `shared-page-header`: one shared options dropdown + title textbox item that
+  pages import and configure, including each page's option set, the title
+  behavior (validation, immutability after focus loss), and a desktop-centered
+  Options dropdown.
 - `browser-side-sessions`: browser-local conditional session persistence
-  (storage location, title-gated saving, title immutability, single-session-
-  per-page isolation, FIFO versioning, session lifecycle actions, unsaved-
-  change protection for untitled sessions) shared by all session-based pages.
+  (storage location, title-gated saving, title immutability after focus loss,
+  single-session-per-page isolation, FIFO versioning, session lifecycle actions,
+  unsaved-change protection for untitled sessions) shared by all session-based
+  pages.
 - `text-editor-page`: the `/text-editor` endpoint and page introduced by the
   rename, including the legacy `/editor` redirect and the navigation entry.
 - `session-gallery`: the home page gallery of saved sessions, with kind
-  filters, session cards (title, kind, latest date), and per-session delete.
+  filters, session cards (title, kind, latest date), title links that reopen the
+  session's page, and per-session delete.
 
 ### Modified Capabilities
 
 - `template-session-editor`: the requirement that title and session controls
   are grouped in one controls area outside the navbar is superseded by the
-  shared page header row (breadcrumb, options dropdown, title textbox).
+  shared page header row (options dropdown, title textbox).
 - `dynamic-text-variable-template-processor`: template session uses browser
   storage with conditional persistence, and the title control is provided by
   the shared page header rather than a page-specific header area.

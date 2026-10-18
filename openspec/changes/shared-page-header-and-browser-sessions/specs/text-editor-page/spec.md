@@ -3,8 +3,8 @@
 ## Purpose
 
 Defines the text editor endpoint and page introduced by renaming the editor
-route, so the page, its navigation entry, and its breadcrumb consistently use the
-Text Editor name while old links keep working.
+route, so the page and its navigation entry consistently use the Text Editor
+name while old links keep working.
 
 ## ADDED Requirements
 
@@ -32,19 +32,14 @@ The application SHALL keep the legacy `/editor` route working as a redirect to
 
 ### Requirement: The text editor is named consistently
 
-The text editor page, its navigation entry on the home page, and its breadcrumb
-SHALL use the name `Text Editor`, and SHALL NOT present the page as `Editor`.
+The text editor page and its navigation entry on the home page SHALL use the
+name `Text Editor`, and SHALL NOT present the page as `Editor`.
 
 #### Scenario: Home page entry
 
 - **WHEN** the user opens the home page
 - **THEN** the page list contains a `Text Editor` entry that links to
   `/text-editor`
-
-#### Scenario: Page breadcrumb
-
-- **WHEN** the user opens the text editor
-- **THEN** the shared page header shows a breadcrumb ending in `Text Editor`
 
 #### Scenario: Page title
 

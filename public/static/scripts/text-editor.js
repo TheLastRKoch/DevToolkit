@@ -4,7 +4,7 @@
  * Handles:
  *  - Quill rich-text editing surface
  *  - Browser-stored session content and title
- *  - The shared page header (breadcrumb, options, title)
+ *  - The shared page header (options, title)
  */
 
 'use strict';
@@ -73,9 +73,6 @@
             return;
         }
         snapshot();
-        if (store.isPersisted()) {
-            header.lockTitle();
-        }
     }
 
     function protectUnsavedWork(event) {
@@ -102,7 +99,6 @@
 
     header = DevToolkitPageHeader.initPageHeader({
         mount: document.getElementById('pageHeader'),
-        breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Text Editor' }],
         title: session.title,
         persisted: store.isPersisted(),
         onTitleChange,

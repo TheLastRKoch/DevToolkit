@@ -66,18 +66,32 @@ string differing from the default placeholder.
 - **WHEN** the user enters "My Project Notes"
 - **THEN** the session is considered titled and persistence is enabled
 
-### Requirement: Title immutability after save
+### Requirement: Title immutability after focus is lost
 
 Once a session is created and saved with a valid custom title, the title input
-field SHALL be set to `disabled="true"` and SHALL NOT be editable or renameable
-for the lifetime of that session.
+field SHALL remain editable while it has focus, so the user can finish typing the
+complete title. The input SHALL be set to `disabled="true"` only when it loses
+focus with a valid title, and SHALL NOT be editable or renameable afterward for
+the lifetime of that session.
 
-#### Scenario: Title becomes read-only after save
+#### Scenario: Title remains editable while typing
 
-- **WHEN** the user enters a valid title and the session is saved
-- **THEN** the title input field is disabled and shows the saved title
+- **WHEN** the user types a valid title and keeps the title textbox focused
+- **THEN** the title input remains enabled and continues to accept characters
 
-#### Scenario: Title cannot be changed after save
+#### Scenario: Title becomes read-only when focus is lost
+
+- **WHEN** the user finishes entering a valid title and the title textbox loses
+  focus
+- **THEN** the title input is disabled and shows the complete saved title
+
+#### Scenario: Invalid title stays editable after focus loss
+
+- **WHEN** the title textbox loses focus with an empty, whitespace-only, or
+  default-placeholder value
+- **THEN** the title input remains enabled so the user can correct it
+
+#### Scenario: Title cannot be changed after focus loss
 
 - **WHEN** the user has a titled session and attempts to edit the title
 - **THEN** the title input does not accept changes (it is disabled)

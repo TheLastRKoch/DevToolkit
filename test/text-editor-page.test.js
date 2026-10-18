@@ -21,7 +21,6 @@ test('the text editor mounts the shared header with its own options', () => {
     const page = openTextEditorPage(sessionsModule.memoryStorage());
 
     assert.deepEqual(page.optionItems().map((item) => item.textContent), ['Clear editor']);
-    assert.deepEqual(page.breadcrumbItems(), ['Home', 'Text Editor']);
     assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
     assert.equal(page.document.title, 'Devtoolkit');
 });
@@ -41,7 +40,9 @@ test('typed content and title are stored on the browser session', () => {
 
     page.typeTitle('Release notes');
     assert.equal(page.document.title, 'Release notes');
-    assert.equal(page.titleInput().getAttribute('disabled'), 'true');
+    assert.equal(page.titleInput().getAttribute('disabled'), null, 'the title stays editable while focused');
+    page.blurTitle();
+    assert.equal(page.titleInput().getAttribute('disabled'), 'true', 'the title locks when focus is lost');
 
     const session = page.storedSession();
     assert.equal(session.kind, 'text-editor');
@@ -120,7 +121,7 @@ test('the text editor page shares the header markup and calls no server API', ()
     assert.ok(textEditorHtml.includes('browser-session.js'), 'the page loads the session store');
     assert.ok(textEditorHtml.includes('page-header.js'), 'the page loads the shared header');
     assert.ok(textEditorHtml.includes('text-editor.js'), 'the page loads its own script');
-    assert.ok(!textEditorHtml.includes('breadcrumb'), 'the page must not duplicate the breadcrumb');
+    assert.ok(!textEditorHtml.includes('breadcrumb') && !textEditorScript.includes('breadcrumb'), 'the page must not include breadcrumb markup');
     assert.ok(!textEditorHtml.includes('template.js'), 'the page must not load the template script');
     assert.ok(!/\/api\//.test(textEditorScript), 'the page must not call /api/ routes');
 });

@@ -4,7 +4,7 @@
 
 Provides the home page (`/`) session gallery, which reads saved sessions from
 browser `localStorage` and replaces the static piece catalog with session cards,
-kind filters, search, and per-session delete.
+title links to each session's page, kind filters, search, and per-session delete.
 
 ## ADDED Requirements
 
@@ -13,13 +13,15 @@ kind filters, search, and per-session delete.
 The home page (`/`) SHALL read all `devtoolkit:sessions:*` keys from
 `localStorage` and display saved sessions as gallery cards, replacing the static
 piece data. The gallery SHALL offer kind filters (All plus one per session kind),
-search by title, and per-session delete.
+search by title, and per-session delete. When no sessions are saved, the gallery
+SHALL show a text-only empty state message without a folder icon or other
+decorative icon.
 
 #### Scenario: Sessions are displayed as cards
 
 - **WHEN** the user opens the home page and there are saved sessions
-- **THEN** each saved session is rendered as a card with its title in the
-  `<h2>` element and its kind · latest `updatedDate` in the `<p>` element
+- **THEN** each saved session is rendered as a card with its title as a link in
+  the `<h2>` element and its kind · latest `updatedDate` in the `<p>` element
 
 #### Scenario: Filters show session kinds
 
@@ -41,4 +43,34 @@ search by title, and per-session delete.
 #### Scenario: Empty state when no sessions exist
 
 - **WHEN** the user opens the home page and there are no saved sessions
-- **THEN** the gallery shows an empty state message
+- **THEN** the gallery shows a text-only empty state message with no folder
+  icon or other decorative icon
+
+### Requirement: Session titles open the session's page
+
+Each gallery card's title SHALL be a link to the page for that session's kind:
+`/text-editor` for `text-editor`, `/markdown-editor` for `markdown-editor`, and
+`/template` for `template`. Following the link SHALL open that page with the
+session's stored content, including the template text and variables for a
+template session.
+
+#### Scenario: Title link targets the matching page
+
+- **WHEN** the user views a saved session card
+- **THEN** its title is a link to the page matching the session's kind
+
+#### Scenario: Text editor session opens with its content
+
+- **WHEN** the user follows a `text-editor` session title
+- **THEN** `/text-editor` opens with the session's content in the editor
+
+#### Scenario: Markdown session opens with its raw text
+
+- **WHEN** the user follows a `markdown-editor` session title
+- **THEN** `/markdown-editor` opens with the session's raw markdown in the editor
+
+#### Scenario: Template session opens with its template and variables
+
+- **WHEN** the user follows a `template` session title
+- **THEN** `/template` opens with the session's template text and variables
+  populated

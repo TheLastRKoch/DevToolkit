@@ -14,7 +14,6 @@ function openHeader(overrides) {
     const header = initPageHeader(Object.assign({
         document: dom.document,
         mount: dom.document.getElementById('pageHeader'),
-        breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Template' }],
         title: '',
         options: [],
     }, overrides || {}));
@@ -26,34 +25,33 @@ function type(input, value) {
     input.dispatch('input', {});
 }
 
-test('the header renders the breadcrumb, options dropdown, and title in one row', () => {
+test('the header renders the options dropdown and title in one row without a breadcrumb', () => {
     const { dom } = openHeader({
         options: [{ id: 'clear-all', label: 'Clear all', run: () => {} }],
     });
 
     const row = dom.document.getElementById('pageHeader').children[0];
-    assert.equal(row.getAttribute('class'), 'row mt-3', 'the header is one row');
-    assert.equal(row.children.length, 3, 'breadcrumb column, controls column, and status area');
+    assert.equal(row.getAttribute('class'), 'row mt-3 align-items-center', 'the header is one row');
+    assert.equal(row.children.length, 4, 'leading spacer, dropdown, title, and status area');
+    assert.ok(!headerScript.includes('breadcrumb'), 'the header no longer renders a breadcrumb');
 
-    const [breadcrumbColumn, controlsColumn] = row.children;
-    assert.equal(breadcrumbColumn.getAttribute('class'), 'col-md-6');
+    const [leadingColumn, dropdownColumn, titleColumn, statusColumn] = row.children;
+    assert.match(leadingColumn.getAttribute('class'), /d-none/);
+    assert.match(leadingColumn.getAttribute('class'), /d-md-block/);
+    assert.match(leadingColumn.getAttribute('class'), /order-md-1/);
+    assert.match(dropdownColumn.getAttribute('class'), /col-md-4/);
+    assert.match(dropdownColumn.getAttribute('class'), /order-2/);
+    assert.match(dropdownColumn.getAttribute('class'), /justify-content-center/);
+    assert.equal(dropdownColumn.children[0].getAttribute('class'), 'dropdown');
+    assert.match(titleColumn.getAttribute('class'), /col-md-4/);
+    assert.match(titleColumn.getAttribute('class'), /order-1/);
+    assert.match(titleColumn.getAttribute('class'), /ms-auto/);
+    assert.match(titleColumn.getAttribute('class'), /ms-md-0/);
+    assert.match(titleColumn.getAttribute('class'), /justify-content-md-end/);
+    assert.equal(titleColumn.children[0].getAttribute('id'), 'pageTitleInput');
+    assert.match(statusColumn.getAttribute('class'), /order-3/);
+    assert.match(statusColumn.getAttribute('class'), /order-md-4/);
 
-    const nav = breadcrumbColumn.children[0];
-    assert.equal(nav.getAttribute('aria-label'), 'breadcrumb');
-    const list = nav.children[0];
-    assert.equal(list.getAttribute('class'), 'breadcrumb');
-    assert.equal(list.children.length, 2, 'a two item breadcrumb renders two entries');
-
-    const [home, current] = list.children;
-    assert.equal(home.getAttribute('class'), 'breadcrumb-item');
-    assert.equal(home.children[0].tagName, 'A');
-    assert.equal(home.children[0].getAttribute('href'), '/');
-    assert.equal(home.children[0].textContent, 'Home');
-    assert.equal(current.getAttribute('class'), 'breadcrumb-item active');
-    assert.equal(current.getAttribute('aria-current'), 'page');
-    assert.equal(current.textContent, 'Template');
-
-    assert.match(controlsColumn.getAttribute('class'), /justify-content-end/);
     const input = dom.document.getElementById('pageTitleInput');
     assert.equal(input.getAttribute('type'), 'text');
     assert.equal(input.getAttribute('placeholder'), TITLE_PLACEHOLDER, 'the title textbox shows the placeholder');
@@ -127,18 +125,23 @@ test('typing a title updates the document title and reports each edit', () => {
     type(input, 'Release notes');
     assert.equal(dom.document.title, 'Release notes');
     assert.deepEqual(changes, ['Release notes']);
+    assert.equal(input.disabled, false, 'the title stays editable while focused');
 
     type(input, 'Release notes v2');
     assert.equal(dom.document.title, 'Release notes v2');
     assert.deepEqual(changes, ['Release notes', 'Release notes v2']);
+    assert.equal(input.disabled, false, 'a valid title does not lock the input while focused');
 });
 
 test('an empty, whitespace, or placeholder title falls back to the default', () => {
-    const { dom, input } = openHeader();
+    const { dom, input, header } = openHeader();
 
     for (const value of ['', '   ', 'DevToolKit', 'devtoolkit', 'DEVTOOLKIT']) {
         type(input, value);
         assert.equal(dom.document.title, DEFAULT_TITLE, `"${value}" is not a title`);
+        input.dispatch('blur', {});
+        assert.equal(input.disabled, false, `"${value}" stays editable after focus loss`);
+        assert.equal(header.isTitleLocked(), false);
     }
 
     type(input, 'Real title');
@@ -158,12 +161,18 @@ test('a stored title is restored disabled, an invalid one opens empty', () => {
     assert.equal(invalid.header.isTitleLocked(), false);
 });
 
-test('the title becomes immutable once it is saved', () => {
+test('the title becomes immutable when focus is lost', () => {
     const changes = [];
     const { header, input, dom } = openHeader({ onTitleChange: (value) => changes.push(value) });
 
-    type(input, 'My notes');
-    header.lockTitle();
+    for (const value of ['M', 'My', 'My notes']) {
+        type(input, value);
+        assert.equal(input.disabled, false, 'the title stays editable while focused');
+        assert.equal(header.isTitleLocked(), false);
+    }
+    assert.equal(dom.document.title, 'My notes');
+
+    input.dispatch('blur', {});
     assert.equal(input.disabled, true);
     assert.equal(input.getAttribute('disabled'), 'true');
     assert.equal(header.isTitleLocked(), true);
@@ -171,8 +180,30 @@ test('the title becomes immutable once it is saved', () => {
 
     type(input, 'Renamed');
     assert.equal(header.isTitleLocked(), true, 'the locked title cannot be edited');
-    assert.deepEqual(changes, ['My notes'], 'a locked title reports no further edits');
+    assert.deepEqual(changes, ['M', 'My', 'My notes'], 'a locked title reports no further edits');
     assert.equal(dom.document.title, 'My notes');
+});
+
+test('focus loss commits the trimmed title before locking', () => {
+    const changes = [];
+    const { header, input } = openHeader({ onTitleChange: (value) => changes.push(value) });
+
+    type(input, '  My notes  ');
+    input.dispatch('blur', {});
+
+    assert.equal(input.value, 'My notes');
+    assert.deepEqual(changes, ['  My notes  ', 'My notes']);
+    assert.equal(header.isTitleLocked(), true);
+});
+
+test('an unpersisted page keeps the title editable after focus loss', () => {
+    const { header, input } = openHeader({ persisted: false });
+
+    type(input, 'Draft');
+    input.dispatch('blur', {});
+
+    assert.equal(input.disabled, false);
+    assert.equal(header.isTitleLocked(), false);
 });
 
 test('the header reports unpersisted storage', () => {

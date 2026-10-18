@@ -1,9 +1,9 @@
 /**
  * Shared page header for the DevToolkit pages.
  *
- * Renders one row containing the breadcrumb trail, the title textbox, and the
- * Options dropdown. Each page includes this script, mounts it once, and declares
- * only its own breadcrumb items, its own options, and its own title.
+ * Renders one row containing the title textbox and the Options dropdown. Each
+ * page includes this script, mounts it once, and declares only its own options
+ * and its own title.
  *
  * Loaded as a classic script in the browser (global `DevToolkitPageHeader`) and
  * exported for Node tests.
@@ -51,25 +51,6 @@
         return trimmed !== '' && !PLACEHOLDER_PATTERN.test(trimmed);
     }
 
-    function renderBreadcrumb(doc, items) {
-        const nav = create(doc, 'nav', { 'aria-label': 'breadcrumb' });
-        const list = create(doc, 'ol', { class: 'breadcrumb' });
-        for (const item of items || []) {
-            const entry = create(doc, 'li', {
-                class: item.href ? 'breadcrumb-item' : 'breadcrumb-item active',
-                'aria-current': item.href ? null : 'page',
-            });
-            if (item.href) {
-                entry.appendChild(create(doc, 'a', { href: item.href }, item.label));
-            } else {
-                entry.textContent = item.label;
-            }
-            list.appendChild(entry);
-        }
-        nav.appendChild(list);
-        return nav;
-    }
-
     function resolveMount(doc, mount) {
         if (mount && typeof mount.appendChild === 'function') {
             return mount;
@@ -93,13 +74,16 @@
         const initialTitle = typeof settings.title === 'string' ? settings.title : '';
         let locked = false;
 
-        const row = create(doc, 'div', { class: 'row mt-3', 'data-page-header': '' });
-        const breadcrumbColumn = create(doc, 'div', { class: 'col-md-6' });
-        const controlsColumn = create(doc, 'div', {
-            class: 'col-md-6 d-flex justify-content-end align-items-center gap-2',
+        const row = create(doc, 'div', { class: 'row mt-3 align-items-center', 'data-page-header': '' });
+        const leadingColumn = create(doc, 'div', {
+            class: 'd-none d-md-block col-md-4 order-md-1',
         });
-
-        breadcrumbColumn.appendChild(renderBreadcrumb(doc, settings.breadcrumb));
+        const dropdownColumn = create(doc, 'div', {
+            class: 'col-auto col-md-4 order-2 order-md-2 d-flex justify-content-center',
+        });
+        const titleColumn = create(doc, 'div', {
+            class: 'col-auto col-md-4 order-1 order-md-3 ms-auto ms-md-0 d-flex justify-content-md-end',
+        });
 
         const titleInput = create(doc, 'input', {
             id: TITLE_INPUT_ID,
@@ -156,12 +140,13 @@
 
         dropdown.appendChild(toggle);
         dropdown.appendChild(menu);
-        controlsColumn.appendChild(titleInput);
-        controlsColumn.appendChild(dropdown);
-        row.appendChild(breadcrumbColumn);
-        row.appendChild(controlsColumn);
+        dropdownColumn.appendChild(dropdown);
+        titleColumn.appendChild(titleInput);
+        row.appendChild(leadingColumn);
+        row.appendChild(dropdownColumn);
+        row.appendChild(titleColumn);
 
-        const statusColumn = create(doc, 'div', { class: 'col-12' });
+        const statusColumn = create(doc, 'div', { class: 'col-12 order-3 order-md-4' });
         const status = create(doc, 'div', {
             id: 'pageHeaderStatus',
             class: 'alert alert-warning mt-2 mb-0',
@@ -177,7 +162,7 @@
             doc.title = isValidTitle(value) ? value.trim() : DEFAULT_TITLE;
         }
 
-        /** Once saved, the title is read-only for the lifetime of the session. */
+        /** Once focus is lost, the title is read-only for the lifetime of the session. */
         function lockTitle() {
             locked = true;
             titleInput.value = titleInput.value.trim();
@@ -214,6 +199,25 @@
             applyDocumentTitle(value);
             if (onTitleChange) {
                 onTitleChange(value);
+            }
+        });
+
+        titleInput.addEventListener('blur', () => {
+            if (locked) {
+                return;
+            }
+            const entered = titleInput.value || '';
+            const value = entered.trim();
+            if (!isValidTitle(value)) {
+                return;
+            }
+            titleInput.value = value;
+            applyDocumentTitle(value);
+            if (value !== entered && onTitleChange) {
+                onTitleChange(value);
+            }
+            if (settings.persisted !== false) {
+                lockTitle();
             }
         });
 

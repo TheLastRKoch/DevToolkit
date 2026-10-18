@@ -14,9 +14,9 @@ const {
 } = require('./helpers/pages.js');
 
 const PAGES = [
-    { script: 'template.js', file: 'template.html', breadcrumb: 'Template', options: ['Clear variables', 'Clear all'] },
-    { script: 'text-editor.js', file: 'text-editor.html', breadcrumb: 'Text Editor', options: ['Clear editor'] },
-    { script: 'markdown-editor.js', file: 'markdown-editor.html', breadcrumb: 'Markdown Editor', options: ['Clear editor'] },
+    { script: 'template.js', file: 'template.html', options: ['Clear variables', 'Clear all'] },
+    { script: 'text-editor.js', file: 'text-editor.html', options: ['Clear editor'] },
+    { script: 'markdown-editor.js', file: 'markdown-editor.html', options: ['Clear editor'] },
 ];
 
 let server;
@@ -73,7 +73,7 @@ test('every editing page serves the shared header with its own options', async (
 
         const script = readScript(page.script);
         assert.deepEqual(declaredList(script, 'options'), page.options, `${page.script} options`);
-        assert.deepEqual(declaredList(script, 'breadcrumb'), ['Home', page.breadcrumb], `${page.script} breadcrumb`);
+        assert.ok(!script.includes('breadcrumb'), `${page.script} must not declare a breadcrumb`);
     }
 });
 
@@ -107,19 +107,14 @@ test('the shared header renders the same row on every page with its own content'
 
     const rows = pages.map((page) => page.headerElement());
     for (const row of rows) {
-        assert.equal(row.getAttribute('class'), 'row mt-3');
-        assert.equal(row.children.length, 3, 'breadcrumb column, controls column, and status area');
+        assert.equal(row.getAttribute('class'), 'row mt-3 align-items-center');
+        assert.equal(row.children.length, 4, 'leading spacer, dropdown, title, and status area');
     }
     const layout = rows[0].children.map((child) => child.getAttribute('class'));
     for (const row of rows.slice(1)) {
         assert.deepEqual(row.children.map((child) => child.getAttribute('class')), layout, 'every page uses the same header row layout');
     }
 
-    assert.deepEqual(pages.map((page) => page.breadcrumbItems()), [
-        ['Home', 'Template'],
-        ['Home', 'Text Editor'],
-        ['Home', 'Markdown Editor'],
-    ]);
     assert.deepEqual(pages.map((page) => page.element('pageOptionsToggle').textContent), ['Options', 'Options', 'Options']);
     for (const page of pages) {
         assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
@@ -141,12 +136,16 @@ test('conditional persistence is title-gated and the saved title is immutable', 
     assert.equal(storage.getItem(key), null, 'a whitespace title is not a valid title');
     assert.equal(page.titleInput().getAttribute('disabled'), null, 'the title stays editable');
 
+    page.typeTitle('W');
+    assert.equal(page.titleInput().getAttribute('disabled'), null, 'the first keystroke does not lock the title');
     page.typeTitle('Weekly notes');
+    assert.equal(page.titleInput().getAttribute('disabled'), null, 'the title stays editable while focused');
+    page.blurTitle();
     page.hide();
     const session = storedSession(storage, 'markdown-editor');
     assert.equal(session.title, 'Weekly notes', 'a valid title enables persistence');
     assert.equal(latestVersion(session).content, '# Draft work');
-    assert.equal(page.titleInput().getAttribute('disabled'), 'true', 'the saved title is immutable');
+    assert.equal(page.titleInput().getAttribute('disabled'), 'true', 'the title is immutable after focus loss');
 
     page.type('pageTitleInput', 'Renamed');
     assert.equal(storedSession(storage, 'markdown-editor').title, 'Weekly notes', 'the saved title cannot be renamed');
@@ -197,7 +196,7 @@ test('the home gallery shows, filters, and deletes sessions saved by the pages',
     textEditor.hide();
 
     const gallery = openGalleryPage(storage);
-    const titles = () => gallery.cards().map((card) => card.children[0].children[0].children[0].children[0].textContent);
+    const titles = () => gallery.cards().map((card) => card.children[0].children[0].children[0].children[0].children[0].textContent);
     assert.deepEqual(titles().sort(), ['Invoice', 'Letter']);
 
     gallery.clickFilter('template');

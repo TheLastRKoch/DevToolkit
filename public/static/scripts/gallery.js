@@ -20,6 +20,15 @@
     const STORAGE_PREFIX = 'devtoolkit:sessions:';
     const KINDS = ['text-editor', 'markdown-editor', 'template'];
     const ALL_KINDS = 'All';
+    const PAGE_BY_KIND = {
+        'text-editor': '/text-editor',
+        'markdown-editor': '/markdown-editor',
+        template: '/template',
+    };
+
+    function pageHref(kind) {
+        return PAGE_BY_KIND[kind] || '/';
+    }
 
     function create(doc, tag, attributes, text) {
         const node = doc.createElement(tag);
@@ -123,7 +132,12 @@
                 class: 'card-body d-flex justify-content-between align-items-start gap-2',
             });
             const text = create(doc, 'div', {});
-            text.appendChild(create(doc, 'h2', { class: 'h6 fw-semibold mb-1' }, session.title));
+            const title = create(doc, 'h2', { class: 'h6 fw-semibold mb-1' });
+            title.appendChild(create(doc, 'a', {
+                class: 'link-body-emphasis text-decoration-none',
+                href: pageHref(session.kind),
+            }, session.title));
+            text.appendChild(title);
             const date = formatDate(session.latestDate);
             text.appendChild(create(doc, 'p', { class: 'small text-body-secondary mb-0' }, date ? `${session.kind} · ${date}` : session.kind));
 

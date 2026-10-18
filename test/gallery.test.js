@@ -2,7 +2,15 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { app } = require('../server');
 
-const { openGalleryPage, seedSession, readScript, sessionsModule } = require('./helpers/pages.js');
+const {
+    openGalleryPage,
+    openMarkdownPage,
+    openTemplatePage,
+    openTextEditorPage,
+    seedSession,
+    readScript,
+    sessionsModule,
+} = require('./helpers/pages.js');
 
 const galleryScript = readScript('gallery.js');
 const STORAGE_KEY = 'devtoolkit:sessions:';
@@ -25,8 +33,11 @@ test.after(() => {
 function cardOf(card) {
     const body = card.children[0].children[0];
     const text = body.children[0];
+    const title = text.children[0];
+    const link = title.children[0];
     return {
-        title: text.children[0].textContent,
+        title: link.textContent,
+        titleHref: link.getAttribute('href'),
         meta: text.children[1].textContent,
         kind: card.children[0].getAttribute('data-kind'),
         removeButton: body.children[1],
@@ -52,6 +63,11 @@ test('GET / serves the session gallery home page', async () => {
     assert.ok(body.includes('static/scripts/browser-session.js'), 'should load the session store');
     assert.ok(body.includes('static/scripts/gallery.js'), 'should load the gallery script');
     assert.ok(!body.includes('type="module"'), 'the gallery is a classic script, not a module');
+    assert.ok(
+        !body.includes('&#x1F4C1;') && !body.includes('\u{1F4C1}'),
+        'the empty state should not include a folder icon'
+    );
+    assert.ok(body.includes('No saved sessions yet.'), 'the empty state should include its message');
 });
 
 test('the gallery module reads sessions from storage instead of static data', () => {
@@ -70,6 +86,41 @@ test('saved sessions are rendered as cards with title, kind, and date', () => {
     assert.deepEqual(cards.map((card) => card.meta).sort(), ['markdown-editor · 2026-10-16', 'template · 2026-10-16']);
     assert.deepEqual(cards.map((card) => card.kind).sort(), ['markdown-editor', 'template']);
     assert.equal(page.element('resultCount').textContent, '2 sessions');
+});
+
+test('card titles link to the page for their session kind', () => {
+    const storage = sessionsModule.memoryStorage();
+    seedSession(storage, 'text-editor', { title: 'Draft', content: '<p>body</p>' }, clock);
+    seedSession(storage, 'markdown-editor', { title: 'Notes', content: '# Notes' }, clock);
+    seedSession(storage, 'template', { title: 'Invoice', content: 'Hello @[name]', variables: { name: 'Ada' } }, clock);
+
+    const page = openGalleryPage(storage);
+    const links = page.cards().map(cardOf).map((card) => [card.title, card.titleHref]);
+    assert.deepEqual(links.sort(), [
+        ['Draft', '/text-editor'],
+        ['Invoice', '/template'],
+        ['Notes', '/markdown-editor'],
+    ].sort());
+});
+
+test('opening a linked page restores the session content saved in the gallery', () => {
+    const storage = sessionsModule.memoryStorage();
+    seedSession(storage, 'text-editor', { title: 'Draft', content: '<p>Editor body</p>' }, clock);
+    seedSession(storage, 'markdown-editor', { title: 'Notes', content: '# Raw notes' }, clock);
+    seedSession(storage, 'template', { title: 'Invoice', content: 'Hello @[name]', variables: { name: 'Ada' } }, clock);
+
+    const textEditor = openTextEditorPage(storage);
+    assert.equal(textEditor.titleInput().value, 'Draft');
+    assert.deepEqual(textEditor.quill.contents, { ops: [{ insert: '<p>Editor body</p>' }] });
+
+    const markdown = openMarkdownPage(storage);
+    assert.equal(markdown.titleInput().value, 'Notes');
+    assert.equal(markdown.element('mdInput').value, '# Raw notes');
+
+    const template = openTemplatePage(storage);
+    assert.equal(template.titleInput().value, 'Invoice');
+    assert.equal(template.element('txtInput').value, 'Hello @[name]');
+    assert.equal(template.element('txtVariables').value, '@[name]=Ada');
 });
 
 test('filter buttons offer All plus every session kind and filter the gallery', () => {

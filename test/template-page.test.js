@@ -15,7 +15,6 @@ test('the template page declares the shared header with its own options', () => 
     const page = openTemplatePage(sessionsModule.memoryStorage());
 
     assert.deepEqual(page.optionItems().map((item) => item.textContent), ['Clear variables', 'Clear all']);
-    assert.deepEqual(page.breadcrumbItems(), ['Home', 'Template']);
     assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
     assert.equal(page.titleInput().value, '');
     assert.equal(page.document.title, 'Devtoolkit');
@@ -30,7 +29,9 @@ test('template text, variables, and title are stored on the browser session', ()
 
     page.typeTitle('Release notes');
     assert.equal(page.document.title, 'Release notes');
-    assert.equal(page.titleInput().getAttribute('disabled'), 'true', 'a saved title is immutable');
+    assert.equal(page.titleInput().getAttribute('disabled'), null, 'the title stays editable while focused');
+    page.blurTitle();
+    assert.equal(page.titleInput().getAttribute('disabled'), 'true', 'the title locks when focus is lost');
 
     let session = page.storedSession();
     assert.equal(session.kind, 'template');
@@ -143,7 +144,7 @@ test('the template page neither calls the server API nor owns header markup', ()
     assert.ok(templateHtml.includes('id="pageHeader"'), 'the page mounts the shared header');
     assert.ok(templateHtml.includes('browser-session.js'), 'the page loads the session store');
     assert.ok(templateHtml.includes('page-header.js'), 'the page loads the shared header');
-    assert.ok(!templateHtml.includes('breadcrumb'), 'the page must not duplicate the breadcrumb');
+    assert.ok(!templateHtml.includes('breadcrumb') && !templateScript.includes('breadcrumb'), 'the page must not include breadcrumb markup');
     assert.ok(!templateHtml.includes('titleInput'), 'the page must not duplicate the title textbox');
     assert.ok(!templateHtml.includes('btnNewSession'), 'the page must not own the session actions');
 });

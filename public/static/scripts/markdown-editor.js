@@ -3,7 +3,7 @@
  *
  * Handles:
  *  - Browser-stored session content and title
- *  - The shared page header (breadcrumb, options, title)
+ *  - The shared page header (options, title)
  *  - Live Markdown-to-HTML rendering via marked
  *  - Real-time character count status bar
  *  - Per-pane expand/restore toggles
@@ -154,9 +154,6 @@
             return;
         }
         snapshot();
-        if (store.isPersisted()) {
-            header.lockTitle();
-        }
     }
 
     function protectUnsavedWork(event) {
@@ -184,7 +181,6 @@
 
     header = DevToolkitPageHeader.initPageHeader({
         mount: document.getElementById('pageHeader'),
-        breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Markdown Editor' }],
         title: session.title,
         persisted: store.isPersisted(),
         onTitleChange,

@@ -23,7 +23,7 @@ The application SHALL store the template session's variables and template state 
 
 ### Requirement: The template header controls the document title
 
-The template interface SHALL display the shared page header's title textbox with placeholder "DevToolKit", and editing it SHALL update the page's HTML `document.title` and store the title on the current template session when valid. Once saved with a valid title, the title input SHALL be disabled.
+The template interface SHALL display the shared page header's title textbox with placeholder "DevToolKit", and editing it SHALL update the page's HTML `document.title` and store the title on the current template session when valid. Once the title textbox loses focus with a valid title, the title input SHALL be disabled.
 
 #### Scenario: Update the browser title
 

@@ -58,10 +58,6 @@ function pageHarness({ dom, window, kind, storage }) {
         headerElement,
         titleInput: () => dom.document.getElementById('pageTitleInput'),
         optionItems: () => dom.document.getElementById('pageOptionsMenu').children.map((item) => item.children[0]),
-        breadcrumbItems: () => {
-            const list = headerElement().children[0].children[0].children[0];
-            return list.children.map((item) => item.textContent || (item.children[0] && item.children[0].textContent));
-        },
         openOptions: () => dom.document.getElementById('pageOptionsToggle').dispatch('click', { preventDefault() {} }),
         selectOption: (index) => dom.document.getElementById('pageOptionsMenu').children[index].children[0].dispatch('click', {}),
         /** Types into an element and fires its input event, like a user would. */
@@ -75,6 +71,9 @@ function pageHarness({ dom, window, kind, storage }) {
             const input = dom.document.getElementById('pageTitleInput');
             input.value = value;
             input.dispatch('input', {});
+        },
+        blurTitle: () => {
+            dom.document.getElementById('pageTitleInput').dispatch('blur', {});
         },
         /** Leaves the tab: the visibility change a page snapshots on. */
         hide: () => {

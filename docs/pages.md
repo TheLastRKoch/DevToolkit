@@ -8,8 +8,10 @@ permanently to `/text-editor`.
 ## Shared page header
 
 `public/static/scripts/page-header.js` renders one header row below the navbar
-containing the breadcrumb trail, the title textbox, and the Options dropdown. A
-page only mounts the header and declares its own content:
+containing the title textbox and the Options dropdown. On desktop viewports
+(768 px and wider) the Options dropdown is centered in the row and the title
+textbox is right-aligned; below 768 px the title and dropdown remain grouped at
+the end of the row. A page only mounts the header and declares its own content:
 
 ```html
 <div id="pageHeader"></div>
@@ -21,7 +23,6 @@ page only mounts the header and declares its own content:
 ```js
 DevToolkitPageHeader.initPageHeader({
     mount: document.getElementById('pageHeader'),
-    breadcrumb: [{ label: 'Home', href: '/' }, { label: 'Template' }],
     title: session.title,
     persisted: store.isPersisted(),
     onTitleChange: (value) => persistTitle(value),
@@ -35,7 +36,6 @@ DevToolkitPageHeader.initPageHeader({
 | Field | Meaning |
 | --- | --- |
 | `mount` | Element (or element id) receiving the header row. Defaults to `pageHeader`. |
-| `breadcrumb` | Ordered items, `{ label, href }`. The last item without `href` is the current page. |
 | `options` | Ordered dropdown items, `{ id, label, run }`. Only these are rendered. |
 | `title` | Stored session title. A valid title is shown disabled. |
 | `onTitleChange` | Called with the typed value on every title edit that is not locked. |
@@ -51,9 +51,11 @@ open/close behavior, so no page needs Bootstrap's JavaScript bundle for it.
 The title textbox shows the placeholder `DevToolKit`. A title is valid when it is
 non-empty, not whitespace only, and not the placeholder (matched
 case-insensitively). Typing a valid title sets `document.title` to it; an empty,
-whitespace, or placeholder value falls back to `Devtoolkit`. Once a valid title
-has been saved, the page calls `lockTitle()`, which sets `disabled="true"` on the
-input so the session cannot be renamed; a stored title is restored locked.
+whitespace, or placeholder value falls back to `Devtoolkit`. The input stays
+editable while focused, even after the value becomes valid, so the complete title
+can be typed. When it loses focus with a valid title, the page calls
+`lockTitle()`, which sets `disabled="true"` on the input so the session cannot be
+renamed; a stored title is restored locked.
 
 ## Page sessions
 
@@ -92,29 +94,30 @@ const stored = store.content();
 ## Template page
 
 `/template` keeps the Template and Variables tabs and the rendered output. Its
-breadcrumb ends in `Template`, and its options are **Clear variables** and
-**Clear all**.
+options are **Clear variables** and **Clear all**.
 
 ## Text editor page
 
-`/text-editor` presents a Quill rich-text editor. Its breadcrumb ends in
-`Text Editor` and it is reached from the home page and from the legacy `/editor`
-route, which redirects permanently. Its only option is **Clear editor**; the
-stored content is imported through Quill's clipboard conversion, which
-normalizes it as untrusted markup.
+`/text-editor` presents a Quill rich-text editor. It is reached from the home
+page and from the legacy `/editor` route, which redirects permanently. Its only
+option is **Clear editor**; the stored content is imported through Quill's
+clipboard conversion, which normalizes it as untrusted markup.
 
 ## Markdown editor page
 
 `/markdown-editor` keeps the raw markdown pane and the rendered preview. Its
-breadcrumb ends in `Markdown Editor`, and its only option is **Clear editor**.
+only option is **Clear editor**.
 
 ## Home page gallery
 
 `/` lists every stored session as a card showing the session title and
-`kind · latest updated date`. The filter buttons offer All plus one button per
-session kind (`text-editor`, `markdown-editor`, `template`), the search box
-filters by title, the × button deletes that session from `localStorage`, and an
-empty state is shown when nothing is saved.
+`kind · latest updated date`. The title links to the page for that session
+(`/text-editor`, `/markdown-editor`, or `/template`), which restores the saved
+content — the editor text, the raw markdown, or the template text and variables.
+The filter buttons offer All plus one button per session kind (`text-editor`,
+`markdown-editor`, `template`), the search box filters by title, the × button
+deletes that session from `localStorage`, and an empty state is shown when
+nothing is saved.
 
 ## Page sessions and the server API
 

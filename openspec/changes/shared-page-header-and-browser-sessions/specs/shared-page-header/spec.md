@@ -2,37 +2,53 @@
 
 ## Purpose
 
-Provides one reusable page header item — breadcrumb, options dropdown, and
-title textbox — so every editing page shows the same header row and declares
-only its own breadcrumb trail, menu options, and title instead of
-re-implementing the row.
+Provides one reusable page header item — an options dropdown and title textbox
+— so every editing page shows the same header row and declares only its own
+menu options and title instead of re-implementing the row.
 
 ## ADDED Requirements
 
 ### Requirement: Pages share one page header item
 
-The application SHALL provide a single reusable page header that renders the
-breadcrumb trail, an Options dropdown, and a title textbox in one row below
-the navbar. Each page that adopts the header SHALL supply its own breadcrumb
-items, its own set of dropdown options, and its own title value, and SHALL
-NOT duplicate the header markup, the dropdown container, or the title textbox.
+The application SHALL provide a single reusable page header that renders an
+Options dropdown and a title textbox in one row below the navbar. Each page that
+adopts the header SHALL supply its own set of dropdown options and its own title
+value, and SHALL NOT duplicate the header markup, the dropdown container, or the
+title textbox. The header SHALL NOT render a breadcrumb.
 
 #### Scenario: Adopting page declares its own header content
 
-- **WHEN** a page adopts the shared page header with a breadcrumb trail, a set of
-  options, and a title
-- **THEN** the header renders that breadcrumb trail, those options, and that title
-  in one row below the navbar
-- **AND** the page contains no separate copy of the breadcrumb, dropdown, or
-  title markup
+- **WHEN** a page adopts the shared page header with a set of options and a title
+- **THEN** the header renders those options and that title in one row below the
+  navbar
+- **AND** the page contains no separate copy of the dropdown or title markup
 
 #### Scenario: Header structure is identical across pages
 
 - **WHEN** the user opens any two adopting pages
-- **THEN** both pages show the breadcrumb, the Options dropdown, and the
-  title textbox in the same header row position
-- **AND** neither page renders a second breadcrumb row, dropdown, or title
+- **THEN** both pages show the Options dropdown and the title textbox in the
+  same header row position
+- **AND** neither page renders a breadcrumb, a second dropdown, or a title
   textbox elsewhere in its layout
+
+### Requirement: The Options dropdown is centered on desktop
+
+On desktop-width viewports (768 px and wider), the page header SHALL position
+the Options dropdown horizontally in the middle of the header row and SHALL keep
+the title textbox right-aligned in that row. Below 768 px, the title textbox and
+Options dropdown SHALL remain grouped at the end of the row.
+
+#### Scenario: Desktop centers the Options dropdown
+
+- **WHEN** an adopting page is viewed at 768 px or wider
+- **THEN** the Options dropdown is horizontally centered in the header row
+- **AND** the title textbox is right-aligned in the same row
+
+#### Scenario: Smaller viewports keep the grouped controls
+
+- **WHEN** an adopting page is viewed below 768 px
+- **THEN** the title textbox and Options dropdown remain grouped at the end of
+  the row
 
 ### Requirement: The Options dropdown exposes only the current page's options
 
@@ -102,16 +118,28 @@ title SHALL fall back to the default page title `Devtoolkit`.
 - **WHEN** the user clears the title textbox or enters the default placeholder
 - **THEN** `document.title` becomes `Devtoolkit`
 
-### Requirement: The title becomes immutable after save
+### Requirement: The title becomes immutable after focus is lost
 
-Once a valid title is saved and the session is persisted, the title input SHALL
-be set to `disabled="true"` and SHALL NOT be editable for the lifetime of that
-session.
+The title input SHALL remain editable while it has focus, so the user can type
+the complete title. Once the input loses focus with a valid title and the session
+is persisted, it SHALL be set to `disabled="true"` and SHALL NOT be editable for
+the lifetime of that session.
 
-#### Scenario: Title becomes disabled after save
+#### Scenario: Title stays editable while typing
 
-- **WHEN** a valid title is provided and the session is saved
+- **WHEN** the user enters a valid title and keeps the title textbox focused
+- **THEN** the title input remains enabled and accepts further characters
+
+#### Scenario: Title becomes disabled when focus is lost
+
+- **WHEN** the user finishes entering a valid title and the title textbox loses
+  focus
 - **THEN** the title input is disabled and cannot be edited
+
+#### Scenario: Invalid title stays editable after focus loss
+
+- **WHEN** the title textbox loses focus with an invalid or empty value
+- **THEN** the title input remains enabled
 
 ### Requirement: The title is scoped to the current page
 

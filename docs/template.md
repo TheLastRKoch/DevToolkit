@@ -28,7 +28,7 @@ consuming the full 12-column grid row:
 - **Output column (right)**: Contains the rendered template output.
 
 Above both columns, the shared page header (see [Editing pages](pages.md)) renders
-the breadcrumb, the Options menu, and the title textbox in one row.
+the Options menu and the title textbox in one row.
 
 ## Variables and Syntax
 
