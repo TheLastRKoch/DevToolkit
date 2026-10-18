@@ -60,22 +60,26 @@ The application SHALL provide separate operations to clear all variable keys and
 
 ### Requirement: Template sessions use isolated incremental routes
 
-The application SHALL store the template session's variables and template state in browser-local storage at `devtoolkit:sessions:template`, isolated from other page sessions. Persistence SHALL be conditional on the user providing a valid custom title.
+The application SHALL store each template session's variables and template
+state in browser-local storage at `devtoolkit:sessions:template:<id>`, isolated
+from other template sessions and other page kinds. Persistence SHALL be
+conditional on the user providing a valid custom title.
 
 #### Scenario: Open a new session
 
-- **WHEN** a user accesses the template session
-- **THEN** the application maintains a single browser-local session for the template page
+- **WHEN** a user accesses `/template`
+- **THEN** the application starts a fresh untitled template session
 
 #### Scenario: Keep sessions isolated
 
-- **WHEN** a user edits variables or template text in the template session
-- **THEN** those changes do not alter the state rendered in other page sessions
+- **WHEN** a user edits variables or template text in one template session
+- **THEN** other template sessions and other page kinds keep their own state
 
 #### Scenario: Restore a routed session
 
-- **WHEN** a user navigates to `/template` at any time after the server process has restarted
-- **THEN** the application serves the template page and restores its stored state from browser storage if a valid titled session exists, or initializes an empty session if no stored state is found
+- **WHEN** a user navigates to `/template/<id>` after the server process restarts
+- **THEN** the application serves the template page and restores that session's
+  stored template text and variables if it exists
 
 ### Requirement: The template header controls the document title
 
