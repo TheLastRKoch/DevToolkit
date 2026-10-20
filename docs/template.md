@@ -1,8 +1,26 @@
 # Dynamic template sessions
 
-Open `/template` to start session 1. Each session has an isolated in-memory
-template and is addressable at `/template/<session-id>`. Use **New session** to
-open the next session in a new browser tab.
+Open `/template` to start a new template session, or `/template/<id>` to reopen
+a saved one. Its text, variables, and title live in this browser's
+`localStorage` under `devtoolkit:sessions:template:<id>`, not in the server
+process. A fresh session receives its numeric ID on the first valid title save,
+and the URL changes to `/template/<id>`.
+
+- Nothing is stored until the session has a **valid custom title** (non-empty,
+  not whitespace, not the `DevToolKit` placeholder). Untitled work stays in the
+  page view, and leaving with unsaved changes raises the browser's native
+  “Leave site?” confirmation.
+- Once titled, the session survives page reloads, browser restarts, and
+  application server restarts without any request to the server, and the title
+  textbox is disabled so the session cannot be renamed. Saved sessions are
+  addressed as `/template/<id>`; legacy single-session data is migrated to ID 1.
+- The session keeps the last three content snapshots. A snapshot is recorded
+  when you leave the tab (or the page unloads) and the template text or the
+  variable values changed since the most recent one; unchanged content is not
+  snapshotted twice, and a fourth snapshot drops the oldest.
+
+The `/api/template/*` endpoints and their in-memory server sessions still exist
+for existing clients, but the template page does not use them.
 
 ## Layout
 
@@ -11,6 +29,9 @@ consuming the full 12-column grid row:
 - **Editor column (left)**: Contains the tabbed interface switching between the
   **Template** input and the **Variables** editor.
 - **Output column (right)**: Contains the rendered template output.
+
+Above both columns, the shared page header (see [Editing pages](pages.md)) renders
+the Options menu and the title textbox in one row.
 
 ## Variables and Syntax
 
@@ -22,8 +43,8 @@ textarea in the Variables tab using the line-by-line format:
 ```text
 @[variable-name]=variable content
 ```
-Empty variables are represented as `@[variable-name]=`. Editing this textarea and
-blurring persists the parsed key-value pairs back to the session.
+Empty variables are represented as `@[variable-name]=`. Editing this textarea
+updates the session variables.
 
 ## Event Triggers and Synchronization
 
@@ -38,9 +59,11 @@ blurring persists the parsed key-value pairs back to the session.
 
 ## Controls
 
-- **Title**: Updates the browser tab title for the current session.
+The session controls live in the header's Options menu:
+
 - **Clear variables**: Removes all variable values while preserving the template text.
 - **Clear all**: Resets both template text and all variables.
-- **Unsaved changes**: Editing the template, variables, or title marks the session
-  as dirty and enables the browser's native “Leave site?” confirmation when closing,
-  refreshing, or navigating away.
+- **Title**: The header textbox updates the browser tab title and is stored as the
+  session's title, so it is restored on reload; a saved title is disabled. The
+  first valid title save assigns the session ID and updates the URL to
+  `/template/<id>`.

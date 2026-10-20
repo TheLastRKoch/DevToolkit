@@ -2,6 +2,8 @@
  * Markdown Editor – DevToolkit
  *
  * Handles:
+ *  - Browser-stored session content and title
+ *  - The shared page header (options, title)
  *  - Live Markdown-to-HTML rendering via marked
  *  - Real-time character count status bar
  *  - Per-pane expand/restore toggles
@@ -118,34 +120,109 @@
         applyPaneState();
     });
 
-    // ── Default sample content ────────────────────────────────────────────────
-    const sampleMarkdown = [
-        '# Welcome to the Markdown Editor',
-        '',
-        'Type or paste **Markdown** on the left and see the rendered preview on the right.',
-        '',
-        '## Features',
-        '',
-        '- Live preview as you type',
-        '- Character count in the status bar below',
-        '- Expand either pane to full width with the `[]` button',
-        '- Synchronized scrolling between panes',
-        '',
-        '## Code Example',
-        '',
-        '```javascript',
-        'console.log("Hello, Markdown!");',
-        '```',
-        '',
-        '> Tip: Use the `[]` button on any pane to maximize it.',
-    ].join('\n');
+    // ── Browser session and shared page header ───────────────────────────────
+    const KIND = 'markdown-editor';
+    let header = null;
+    let dirty = false;
 
-    mdInput.value = sampleMarkdown;
+    const routeSessionId = DevToolkitSessions.sessionIdFromPath(window.location.pathname, KIND);
+    const store = DevToolkitSessions.openStore(KIND, DevToolkitSessions.browserStorage(), {
+        sessionId: routeSessionId,
+        onWriteError: () => {
+            if (header) {
+                header.warn('Changes will not be persisted in this browser.');
+            }
+        },
+    });
+    const session = store.get();
+    const stored = store.content();
+
+    /** Stages the markdown in the session; a titled session writes through. */
+    function persistContent() {
+        dirty = true;
+        store.save({ content: mdInput.value });
+    }
+
+    /** Records the current markdown as a version when it changed. */
+    function snapshot() {
+        if (store.isTitled()) {
+            store.snapshot();
+        }
+    }
+
+    function updateSessionUrl(saved) {
+        if (!saved || !saved.persisted || saved.id === null || saved.id === undefined) {
+            return;
+        }
+        const path = DevToolkitSessions.pagePath(KIND, saved.id);
+        if (window.location.pathname === path) {
+            return;
+        }
+        if (window.history && typeof window.history.replaceState === 'function') {
+            window.history.replaceState(null, '', path);
+        }
+    }
+
+    function onTitleChange(value) {
+        dirty = true;
+        const saved = store.save({ title: value });
+        if (!store.isTitled()) {
+            return;
+        }
+        snapshot();
+        updateSessionUrl(saved);
+    }
+
+    function protectUnsavedWork(event) {
+        if (store.isTitled()) {
+            snapshot();
+            if (store.isPersisted()) {
+                return;
+            }
+        } else if (!dirty) {
+            return;
+        }
+        if (event) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    }
+
+    /** Clear editor empties the content only; the title stays. */
+    function clearEditor() {
+        mdInput.value = '';
+        updateContent();
+        persistContent();
+        dirty = false;
+    }
+
+    header = DevToolkitPageHeader.initPageHeader({
+        mount: document.getElementById('pageHeader'),
+        title: session.title,
+        persisted: store.isPersisted(),
+        onTitleChange,
+        options: [
+            { id: 'clear-editor', label: 'Clear editor', run: clearEditor },
+        ],
+    });
 
     // ── Initialize ────────────────────────────────────────────────────────────
+    mdInput.value = stored.content || '';
     updateContent();
     applyPaneState();
 
     // Live updates on input (covers typing, paste, cut, undo/redo)
-    mdInput.addEventListener('input', updateContent);
+    mdInput.addEventListener('input', () => {
+        updateContent();
+        persistContent();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            snapshot();
+        }
+    });
+
+    window.addEventListener('pagehide', snapshot);
+    window.addEventListener('beforeunload', protectUnsavedWork);
 }());

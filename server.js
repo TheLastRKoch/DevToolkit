@@ -83,30 +83,42 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/template', (req, res) => {
-    if (!sessions.has(1)) {
-        getSession(1);
-        nextSessionId = Math.max(nextSessionId, 2);
-    }
-    res.redirect('/template/1');
-});
+/**
+ * ID-less page routes start a fresh browser-side session; numeric-ID routes
+ * open the saved session with that ID.
+ */
+function servePage(fileName) {
+    return (req, res) => res.sendFile(path.join(__dirname, 'public', fileName));
+}
 
-app.get('/template/:sessionId', (req, res) => {
-    const id = parseSessionId(req.params.sessionId);
-    if (id === null) {
-        return res.status(400).send('Invalid template session id');
-    }
-    getSession(id);
-    return res.sendFile(path.join(__dirname, 'public', 'template.html'));
-});
+function serveSessionPage(fileName) {
+    return (req, res) => {
+        if (!/^[1-9][0-9]*$/.test(req.params.id)) {
+            return res.sendStatus(404);
+        }
+        return res.sendFile(path.join(__dirname, 'public', fileName));
+    };
+}
+
+app.get('/template', servePage('template.html'));
+app.get('/template/:id', serveSessionPage('template.html'));
 
 app.get('/editor', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'editor.html'));
+    res.redirect(301, '/text-editor');
 });
 
-app.get('/markdown-editor', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'markdown-editor.html'));
+app.get('/editor/:id', (req, res) => {
+    if (!/^[1-9][0-9]*$/.test(req.params.id)) {
+        return res.sendStatus(404);
+    }
+    return res.redirect(301, `/text-editor/${req.params.id}`);
 });
+
+app.get('/text-editor', servePage('text-editor.html'));
+app.get('/text-editor/:id', serveSessionPage('text-editor.html'));
+
+app.get('/markdown-editor', servePage('markdown-editor.html'));
+app.get('/markdown-editor/:id', serveSessionPage('markdown-editor.html'));
 
 app.post('/api/template/sessions', (req, res) => {
     const session = createSession();
