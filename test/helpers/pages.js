@@ -68,6 +68,7 @@ function pageHarness({ dom, window, kind, storage }) {
 
     return {
         document: dom.document,
+        window,
         element: (id) => dom.document.getElementById(id),
         headerElement,
         sessionId,
@@ -212,6 +213,33 @@ function openTextEditorPage(storage, { clock, initialHtml, title, sessionId } = 
     return page;
 }
 
+const LIST_COMPARE_IDS = [
+    'inputA', 'inputB', 'badgeA', 'badgeB', 'compareBtn', 'caseInsensitive', 'trimWhitespace',
+    'replacementTool', 'replaceSearch', 'replaceWith', 'replaceRegex', 'replaceError',
+    'toggleReplacement', 'applyReplacement', 'resultsSection', 'outputOnlyA', 'outputOnlyB',
+    'outputInBoth', 'countBadgeOnlyA', 'countBadgeOnlyB', 'countBadgeInBoth', 'statInA',
+    'statOnlyA', 'statInB', 'statOnlyB', 'statDiff', 'statInBoth', 'fileA', 'fileB', 'copyA',
+    'copyB',
+];
+
+function openListComparePage(storage, { clock, sessionId, title, listA, listB } = {}) {
+    let targetId = sessionId;
+    if (title !== undefined) {
+        const content = JSON.stringify({ listA: listA || '', listB: listB || '' });
+        const store = seedSession(storage, 'list-compare', { title, content }, clock, targetId);
+        targetId = store.getId();
+    }
+    return buildHarness({
+        ids: LIST_COMPARE_IDS,
+        script: readScript('list-compare.js'),
+        storage,
+        clock,
+        sessionId: targetId,
+        kind: 'list-compare',
+        globals: {},
+    });
+}
+
 function openGalleryPage(storage, { clock } = {}) {
     const dom = createDom(['filters', 'search', 'gallery', 'resultCount', 'emptyState', 'resetFilters', 'currentYear']);
     const window = createWindow('/');
@@ -275,6 +303,7 @@ module.exports = {
     openTemplatePage,
     openMarkdownPage,
     openTextEditorPage,
+    openListComparePage,
     openGalleryPage,
     seedSession,
     storedSession,

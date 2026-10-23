@@ -31,7 +31,7 @@ text-only empty state message without a folder icon or other decorative icon.
 
 - **WHEN** the user opens the home page
 - **THEN** the filter buttons show the kinds of stored sessions (e.g.,
-  `text-editor`, `markdown-editor`, `template`) plus an "All" option
+  `text-editor`, `markdown-editor`, `template`, `list-compare`) plus an "All" option
 
 #### Scenario: Search filters sessions by title
 
@@ -54,7 +54,8 @@ text-only empty state message without a folder icon or other decorative icon.
 
 Each gallery card's title SHALL link to `/<kind>/<id>` for that session.
 Following the link SHALL open the page with that session's stored content,
-including the template text and variables for a template session.
+including the template text and variables for a template session, or List A and
+List B inputs for a list compare session.
 
 #### Scenario: Title link targets the matching page
 
@@ -78,16 +79,27 @@ including the template text and variables for a template session.
 - **THEN** `/template/<id>` opens with that session's template text and
   variables populated
 
+#### Scenario: List compare session opens with its lists
+
+- **WHEN** the user follows a `list-compare` session title
+- **THEN** `/list-compare/<id>` opens with that session's List A and List B text boxes populated
+
 ### Requirement: The New control starts a fresh session
 
 The gallery's New dropdown SHALL link each page type to its ID-less route
-(`/template`, `/text-editor`, `/markdown-editor`). Following a New link SHALL
-open an empty untitled session and SHALL NOT load a saved session.
+(`/template`, `/text-editor`, `/markdown-editor`, `/list-compare`). Following a
+New link SHALL open an empty untitled session and SHALL NOT load a saved
+session.
 
 #### Scenario: New template session
 
 - **WHEN** the user selects Template from the New dropdown
 - **THEN** `/template` opens with an empty untitled template session
+
+#### Scenario: New list compare session
+
+- **WHEN** the user selects List Compare from the New dropdown
+- **THEN** `/list-compare` opens with an empty untitled list compare session
 
 #### Scenario: New session does not reuse a saved session
 
