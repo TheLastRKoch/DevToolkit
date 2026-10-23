@@ -120,6 +120,9 @@ app.get('/text-editor/:id', serveSessionPage('text-editor.html'));
 app.get('/markdown-editor', servePage('markdown-editor.html'));
 app.get('/markdown-editor/:id', serveSessionPage('markdown-editor.html'));
 
+app.get('/list-compare', servePage('list-compare.html'));
+app.get('/list-compare/:id', serveSessionPage('list-compare.html'));
+
 app.post('/api/template/sessions', (req, res) => {
     const session = createSession();
     res.status(201).json({ id: session.id, path: `/template/${session.id}` });

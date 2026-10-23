@@ -7,6 +7,7 @@ const {
     openMarkdownPage,
     openTemplatePage,
     openTextEditorPage,
+    openListComparePage,
     seedSession,
     readScript,
     sessionsModule,
@@ -143,7 +144,7 @@ test('multiple sessions of one kind render as distinct cards', () => {
 test('the New menu links to ID-less routes that start fresh sessions', async () => {
     const res = await fetch(`${baseUrl}/`);
     const body = await res.text();
-    for (const href of ['/template', '/text-editor', '/markdown-editor']) {
+    for (const href of ['/template', '/text-editor', '/markdown-editor', '/list-compare']) {
         assert.ok(body.includes(`href="${href}"`), `the New menu should link to ${href}`);
     }
 
@@ -153,6 +154,7 @@ test('the New menu links to ID-less routes that start fresh sessions', async () 
         { kind: 'template', open: openTemplatePage },
         { kind: 'text-editor', open: openTextEditorPage },
         { kind: 'markdown-editor', open: openMarkdownPage },
+        { kind: 'list-compare', open: openListComparePage },
     ];
     for (const { kind, open } of cases) {
         const page = open(storage);
@@ -193,7 +195,7 @@ test('legacy single-session documents migrate to ID 1 for every kind', () => {
 
 test('filter buttons offer All plus every session kind and filter the gallery', () => {
     const page = openGalleryPage(seedGallery());
-    assert.deepEqual(page.filterButtons().map((button) => button.textContent), ['All', 'text-editor', 'markdown-editor', 'template']);
+    assert.deepEqual(page.filterButtons().map((button) => button.textContent), ['All', 'text-editor', 'markdown-editor', 'template', 'list-compare']);
 
     page.clickFilter('template');
     assert.deepEqual(page.cards().map((card) => cardOf(card).title), ['Invoice']);
