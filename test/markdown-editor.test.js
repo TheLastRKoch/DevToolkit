@@ -123,5 +123,8 @@ test('Layout styling: responsive orientation, 200px margins, and 50/50 split siz
 
     // Verify desktop/tablet 50% width and 100% height inside @media (min-width: 768px)
     assert.match(html, /@media\s*\(\s*min-width:\s*768px\s*\)\s*\{[\s\S]*?#rawPane,\s*#previewPane\s*\{[\s\S]*?width:\s*50%;[\s\S]*?height:\s*100%;/, 'panes must have width: 50% and height: 100% inside @media (min-width: 768px)');
+
+    // Verify #editorWorkspace includes top margin separating it from the page header
+    assert.match(html, /id="editorWorkspace"[^>]*class="[^"]*(?:mt-3|my-3)[^"]*"/, 'editorWorkspace must have mt-3 or my-3 for vertical margin separation');
 });
 

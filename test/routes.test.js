@@ -123,3 +123,19 @@ test('legacy editor session routes redirect to the text editor route', async () 
     const invalid = await getPage('/editor/abc');
     assert.equal(invalid.status, 404);
 });
+
+test('all served pages render the updated footer with GitHub fork link', async () => {
+    const pages = ['/', '/text-editor', '/markdown-editor', '/template'];
+    for (const path of pages) {
+        const res = await getPage(path);
+        assert.equal(res.status, 200, `${path} should return 200`);
+        const body = await res.text();
+        assert.match(
+            body,
+            /DevToolKit\s+fork\s+me\s+on\s+<a\s+href="https:\/\/github\.com\/TheLastRKoch\/devtoolkit"[^>]*>github<\/a>/i,
+            `${path} should contain GitHub fork link in footer`
+        );
+        assert.ok(!body.includes('All rights reserved.'), `${path} should not contain legacy copyright text`);
+    }
+});
+
