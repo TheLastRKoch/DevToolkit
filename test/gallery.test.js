@@ -67,6 +67,8 @@ test('GET / serves the session gallery home page', async () => {
         'the empty state should not include a folder icon'
     );
     assert.ok(body.includes('No saved sessions yet.'), 'the empty state should include its message');
+    assert.match(body, /<body[^>]*class="[^"]*d-flex\s+flex-column\s+min-vh-100[^"]*"/, 'home page body must have d-flex flex-column min-vh-100');
+    assert.match(body, /<main[^>]*class="[^"]*flex-grow-1[^"]*"/, 'home page main must have flex-grow-1');
 });
 
 test('the gallery module reads sessions from storage instead of static data', () => {
