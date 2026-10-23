@@ -74,8 +74,8 @@ the dropdown.
 
 The template page SHALL declare Clear variables and Clear all as its dropdown
 options. The text editor page SHALL declare Clear editor. The markdown editor
-page SHALL declare Clear editor. A page SHALL offer no option that it does not
-implement.
+page SHALL declare Clear editor. The list compare page SHALL declare Clear all.
+A page SHALL offer no option that it does not implement.
 
 #### Scenario: Template page options
 
@@ -93,6 +93,11 @@ implement.
 - **WHEN** the user opens the markdown editor page and activates the Options
   dropdown
 - **THEN** Clear editor is listed
+
+#### Scenario: List compare page options
+
+- **WHEN** the user opens the list compare page and activates the Options dropdown
+- **THEN** Clear all is listed
 
 ### Requirement: The title textbox validates the entered title
 

@@ -221,6 +221,8 @@ the oldest entry SHALL be dropped (FIFO).
 - **THEN** each version contains `updatedDate` and `content`
 - **GIVEN** a template session
 - **THEN** each version contains `updatedDate`, `content`, and `variables`
+- **GIVEN** a list-compare session
+- **THEN** each version contains `updatedDate` and `content` storing List A and List B details
 
 ### Requirement: Version snapshots deduplicate unchanged content
 
@@ -256,6 +258,11 @@ empty the page's editable content and variable values, keeping the title.
 
 - **WHEN** the user selects Clear all on the template page
 - **THEN** the template text and all variables are emptied
+
+#### Scenario: Clear all on list compare
+
+- **WHEN** the user selects Clear all on the list compare page
+- **THEN** the List A and List B text boxes and results are emptied while the title is preserved
 
 ### Requirement: Unsaved changes are protected for untitled sessions
 
