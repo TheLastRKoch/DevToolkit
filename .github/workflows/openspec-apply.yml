@@ -1,0 +1,210 @@
+name: Apply OpenSpec change
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Branch, tag, or commit SHA to use as the source revision
+        required: true
+        type: string
+      change:
+        description: OpenSpec change directory under openspec/changes
+        required: true
+        type: string
+      task:
+        description: Task ID from tasks.md, or all for every pending task
+        required: true
+        default: all
+        type: string
+      model_provider:
+        description: Generic model provider name
+        required: true
+        default: deepseek
+        type: string
+      model_name:
+        description: Model identifier
+        required: true
+        default: deepseek-chat
+        type: string
+      model_endpoint:
+        description: OpenAI-compatible API base URL
+        required: true
+        default: https://api.deepseek.com
+        type: string
+      validation_command:
+        description: Repository validation command run before PR creation
+        required: true
+        default: openspec validate --all --json
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: openspec-apply-${{ inputs.change }}-${{ inputs.task }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OPENSPEC_CHANGE: ${{ inputs.change }}
+      OPENSPEC_TASK: ${{ inputs.task }}
+      SOURCE_REF: ${{ inputs.source_ref }}
+      MODEL_PROVIDER: ${{ inputs.model_provider }}
+      MODEL_NAME: ${{ inputs.model_name }}
+      MODEL_ENDPOINT: ${{ inputs.model_endpoint }}
+      MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+      VALIDATION_COMMAND: ${{ inputs.validation_command }}
+    steps:
+      - name: Validate model configuration
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${MODEL_API_KEY:-}" ]]; then
+            echo "::error::MODEL_API_KEY repository secret is required for the selected model provider"
+            exit 1
+          fi
+
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Install OpenSpec CLI
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --global @fission-ai/openspec
+          openspec --version
+
+      - name: Validate source and change
+        id: source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          source_ref = os.environ["SOURCE_REF"].strip()
+          if (
+              not source_ref
+              or source_ref.startswith("-")
+              or any(character.isspace() or ord(character) < 32 for character in source_ref)
+              or any(token in source_ref for token in ("..", "@{"))
+          ):
+              raise SystemExit("Invalid source ref: use a branch, tag, or commit SHA")
+          try:
+              source_commit = subprocess.check_output(
+                  ["git", "rev-parse", "--verify", f"{source_ref}^{{commit}}"],
+                  text=True,
+                  stderr=subprocess.STDOUT,
+              ).strip()
+          except subprocess.CalledProcessError as error:
+              raise SystemExit(f"Source ref is unavailable: {source_ref}") from error
+
+          change = os.environ["OPENSPEC_CHANGE"]
+          if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", change) or ".." in Path(change).parts:
+              raise SystemExit("Invalid OpenSpec change name")
+          directory = Path("openspec/changes") / change
+          required = [directory / "proposal.md", directory / "design.md", directory / "tasks.md"]
+          required.extend(sorted((directory / "specs").glob("**/*.md")))
+          if not directory.is_dir() or not (directory / "specs").is_dir():
+              raise SystemExit(f"OpenSpec change does not exist or has no specs: {directory}")
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise SystemExit("Missing OpenSpec artifacts: " + ", ".join(missing))
+          subprocess.run(["openspec", "validate", change, "--json"], check=True)
+          spec_files = list((directory / "specs").glob("**/*.md"))
+          if not spec_files or all(not path.read_text(encoding="utf-8").strip() for path in spec_files):
+              raise SystemExit(
+                  f"OpenSpec change '{change}' has no substantive specification content "
+                  f"in {directory / 'specs'}; add at least one non-empty spec file before invoking the model"
+              )
+          source_component = re.sub(r"[^A-Za-z0-9._-]+", "-", source_ref).strip("-")
+          branch = f"openspec/{change.replace('/', '-')}-{source_component}-{os.environ['GITHUB_RUN_ID']}"
+          if subprocess.run(
+              ["git", "ls-remote", "--exit-code", "--heads", "origin", f"refs/heads/{branch}"],
+              stdout=subprocess.DEVNULL,
+              stderr=subprocess.DEVNULL,
+              check=False,
+          ).returncode == 0:
+              raise SystemExit(f"Generated branch already exists: {branch}")
+          subprocess.run(["git", "switch", "--create", branch, source_commit], check=True)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"source_ref={source_ref}\n")
+              output.write(f"source_commit={source_commit}\n")
+              output.write(f"branch={branch}\n")
+          print(f"Using source ref {source_ref} at {source_commit}")
+          print(f"Created branch {branch}")
+          PY
+
+      - name: Apply selected OpenSpec task with model
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/openspec_apply.py
+
+      - name: Run repository validation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -lc "$VALIDATION_COMMAND"
+
+      - name: Commit and push implementation
+        id: publish
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "::error::No implementation diff was generated"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "Apply OpenSpec change ${OPENSPEC_CHANGE}"
+          branch="$(git branch --show-current)"
+          if [[ "$branch" != "${{ steps.source.outputs.branch }}" ]]; then
+            echo "::error::Generated branch changed unexpectedly"
+            exit 1
+          fi
+          git push --set-upstream origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ steps.publish.outputs.source_commit }}
+          SOURCE_REF: ${{ steps.source.outputs.source_ref }}
+          RESOLVED_SOURCE_COMMIT: ${{ steps.source.outputs.source_commit }}
+          BRANCH: ${{ steps.publish.outputs.branch }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gh pr create \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head "$BRANCH" \
+            --title "Apply OpenSpec change: ${OPENSPEC_CHANGE}" \
+            --body "$(cat <<EOF
+          ## OpenSpec automation
+
+          - Change: \`${OPENSPEC_CHANGE}\`
+          - Task selection: \`${OPENSPEC_TASK}\`
+          - Source ref: \`${SOURCE_REF}\`
+          - Resolved source commit: \`${RESOLVED_SOURCE_COMMIT}\`
+          - Model: \`${MODEL_PROVIDER}/${MODEL_NAME}\`
+          - Source commit: \`${SOURCE_COMMIT}\`
+          - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - Validation: \`${VALIDATION_COMMAND}\`
+
+          Generated by the manually dispatched OpenSpec apply workflow. Review all model-generated changes before merging.
+          EOF
+          )"

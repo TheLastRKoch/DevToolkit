@@ -1,81 +1,260 @@
-//Init tagList for all the session
-tagList = [];
-tagListReassembled = [];
+/**
+ * Template page – DevToolkit
+ *
+ * The page works on one browser-side session at a time, stored at
+ * `devtoolkit:sessions:template:<id>` and holding the template text and its
+ * variable values. Nothing is written to storage until the user provides a valid
+ * title; the session then keeps the last three content snapshots, recorded when
+ * the user navigates away from the page.
+ */
+(function () {
+    const input = document.getElementById('txtInput');
+    const output = document.getElementById('txtOutput');
+    const variablesPanel = document.getElementById('variablesPanel');
+    const txtVariables = document.getElementById('txtVariables');
+    const templateTab = document.getElementById('templateTab');
+    const variablesTab = document.getElementById('variablesTab');
+    const templatePanel = document.getElementById('templatePanel');
+    const currentYear = document.getElementById('currentYear');
+    const VARIABLE_LINE_PATTERN = /^@\[([a-zA-Z0-9_-]+)\]=(.*)$/;
+    const VARIABLE_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+    const TOKEN_PATTERN = /@\[([a-zA-Z0-9_-]+)\]/g;
+    const KIND = 'template';
 
-function clearAll(){
-    inputValue = ""
-    document.getElementById('txtInput').value = ""
-    document.getElementById('txtQuery').value = ""
-    quill.setText("")
-    tagList = []
-    tagListReassembled = []
-}
+    let header = null;
+    let dirty = false;
+    let variables = Object.create(null);
 
-function getTags(inputValue) {
-    regex = /(\@\[.+?\])/g
+    const routeSessionId = DevToolkitSessions.sessionIdFromPath(window.location.pathname, KIND);
+    const store = DevToolkitSessions.openStore(KIND, DevToolkitSessions.browserStorage(), {
+        sessionId: routeSessionId,
+        onWriteError: () => {
+            if (header) {
+                header.warn('Changes will not be persisted in this browser.');
+            }
+        },
+    });
+    const session = store.get();
+    const stored = store.content();
 
+    function readVariables(source) {
+        const map = Object.create(null);
+        if (source && typeof source === 'object') {
+            for (const [key, value] of Object.entries(source)) {
+                if (VARIABLE_NAME_PATTERN.test(key) && typeof value === 'string') {
+                    Object.defineProperty(map, key, { value, enumerable: true, writable: true, configurable: true });
+                }
+            }
+        }
+        return map;
+    }
 
-    while ((match = regex.exec(inputValue)) !== null) {
-        tag = { key: match[1], value: "" }
-        if (!tagList.some(item => JSON.stringify(item) === JSON.stringify(tag))){
-            tagList.push(tag);
+    function snapshotVariables() {
+        const plain = {};
+        for (const [key, value] of Object.entries(variables)) {
+            Object.defineProperty(plain, key, { value, enumerable: true, writable: true, configurable: true });
+        }
+        return plain;
+    }
+
+    function serializeVariables() {
+        return Object.entries(variables).map(([key, value]) => `@[${key}]=${value}`).join('\n');
+    }
+
+    function parseVariables(text) {
+        const parsed = Object.create(null);
+        if (!text) {
+            return parsed;
+        }
+        for (const line of text.split(/\r?\n/)) {
+            const match = line.match(VARIABLE_LINE_PATTERN);
+            if (match) {
+                Object.defineProperty(parsed, match[1], {
+                    value: match[2],
+                    enumerable: true,
+                    writable: true,
+                    configurable: true,
+                });
+            }
+        }
+        return parsed;
+    }
+
+    function detectTokens(text) {
+        const tokens = [];
+        const seen = new Set();
+        for (const match of text.matchAll(TOKEN_PATTERN)) {
+            if (!seen.has(match[1])) {
+                seen.add(match[1]);
+                tokens.push(match[1]);
+            }
+        }
+        return tokens;
+    }
+
+    function syncTokens() {
+        for (const token of detectTokens(input.value)) {
+            if (!Object.prototype.hasOwnProperty.call(variables, token)) {
+                Object.defineProperty(variables, token, {
+                    value: '',
+                    enumerable: true,
+                    writable: true,
+                    configurable: true,
+                });
+            }
         }
     }
-    // TODO: add validation currentStatus = "Error trying to get the tags from the input"
-}
 
-
-function printTags() {
-    
-    queryText = ""
-    for (const tag of tagList) {
-        queryText += tag.key + "=" + tag.value + "\n"
+    function renderVariables() {
+        txtVariables.value = serializeVariables();
     }
-    return queryText
-}
 
-
-function reassemblyTags(tagsText) {
-    regex = /(.+?)=(.+?)$/gm
-
-
-    while ((match = regex.exec(tagsText)) !== null) {
-        tagListReassembled.push({ key: match[1], value: match[2] });
+    function renderOutput() {
+        output.value = input.value.replace(TOKEN_PATTERN, (rawToken, token) => variables[token] || rawToken);
     }
-    // TODO: add validation currentStatus = "Error trying to get the tags from the input"
-    return tagListReassembled
-}
 
-
-function replaceTags(inputValue, tagList) {
-    for (const tag of tagList) {
-        inputValue = inputValue.replaceAll(tag.key, tag.value)
+    /** Stages the page's state in the session; a titled session writes through. */
+    function persistContent() {
+        dirty = true;
+        store.save({ content: input.value, variables: snapshotVariables() });
     }
-    return inputValue
-}
 
-function renderQuery() {
-    outputValue = replaceTags(inputValue, tagList)
-    document.getElementById('txtOutput').value = outputValue
-}
+    /** Records the current content as a version when it changed. */
+    function snapshot() {
+        if (store.isTitled()) {
+            store.snapshot();
+        }
+    }
 
-document.getElementById('txtInput').addEventListener('focusout', function () {
-    inputValue = document.getElementById('txtInput').value
-    getTags(inputValue)
-    tagsText = printTags()
-    document.getElementById('txtQuery').value = tagsText
-});
+    function updateSessionUrl(saved) {
+        if (!saved || !saved.persisted || saved.id === null || saved.id === undefined) {
+            return;
+        }
+        const path = DevToolkitSessions.pagePath(KIND, saved.id);
+        if (window.location.pathname === path) {
+            return;
+        }
+        if (window.history && typeof window.history.replaceState === 'function') {
+            window.history.replaceState(null, '', path);
+        }
+    }
 
+    function onTitleChange(value) {
+        dirty = true;
+        const saved = store.save({ title: value });
+        if (!store.isTitled()) {
+            return;
+        }
+        snapshot();
+        updateSessionUrl(saved);
+    }
 
-document.getElementById('txtQuery').addEventListener('focusout', function () {
-    queryText = document.getElementById('txtQuery').value
-    tagListReassembled = reassemblyTags(queryText)
-    outputText = replaceTags(inputValue, tagListReassembled)
-    quill.setText(outputText)
-});
+    function protectUnsavedWork(event) {
+        if (store.isTitled()) {
+            snapshot();
+            if (store.isPersisted()) {
+                return;
+            }
+        } else if (!dirty) {
+            return;
+        }
+        if (event) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    }
 
-document.getElementById('btnClearAll').addEventListener('click', function(){
-    clearAll()
-})
+    function selectTab(tab) {
+        const showVariables = tab === 'variables';
+        templateTab.classList.toggle('active', !showVariables);
+        variablesTab.classList.toggle('active', showVariables);
+        templateTab.setAttribute('aria-selected', String(!showVariables));
+        variablesTab.setAttribute('aria-selected', String(showVariables));
+        templatePanel.classList.toggle('active', !showVariables);
+        templatePanel.classList.toggle('show', !showVariables);
+        variablesPanel.classList.toggle('active', showVariables);
+        variablesPanel.classList.toggle('show', showVariables);
+        templatePanel.hidden = showVariables;
+        variablesPanel.hidden = !showVariables;
+    }
 
-document.getElementById('currentYear').textContent = new Date().getFullYear();
+    function clearVariables() {
+        variables = readVariables({});
+        renderVariables();
+        persistContent();
+        dirty = input.value !== '';
+    }
+
+    function clearAll() {
+        variables = readVariables({});
+        input.value = '';
+        output.value = '';
+        renderVariables();
+        persistContent();
+        dirty = false;
+    }
+
+    header = DevToolkitPageHeader.initPageHeader({
+        mount: document.getElementById('pageHeader'),
+        title: session.title,
+        persisted: store.isPersisted(),
+        onTitleChange,
+        options: [
+            { id: 'clear-variables', label: 'Clear variables', run: clearVariables },
+            { id: 'clear-all', label: 'Clear all', run: clearAll },
+        ],
+    });
+
+    input.value = stored.content || '';
+    variables = readVariables(stored.variables);
+    renderVariables();
+    output.value = '';
+
+    input.addEventListener('input', persistContent);
+
+    input.addEventListener('blur', () => {
+        syncTokens();
+        renderVariables();
+        persistContent();
+    });
+
+    txtVariables.addEventListener('input', () => {
+        variables = parseVariables(txtVariables.value);
+        persistContent();
+    });
+
+    txtVariables.addEventListener('blur', () => {
+        variables = parseVariables(txtVariables.value);
+        renderVariables();
+        persistContent();
+    });
+
+    output.addEventListener('focus', renderOutput);
+
+    templateTab.addEventListener('click', () => {
+        selectTab('template');
+    });
+
+    variablesTab.addEventListener('click', () => {
+        if (variablesTab.classList.contains('active')) {
+            return;
+        }
+        syncTokens();
+        renderVariables();
+        persistContent();
+        selectTab('variables');
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            snapshot();
+        }
+    });
+
+    window.addEventListener('pagehide', snapshot);
+    window.addEventListener('beforeunload', protectUnsavedWork);
+
+    if (currentYear) {
+        currentYear.textContent = new Date().getFullYear();
+    }
+}());

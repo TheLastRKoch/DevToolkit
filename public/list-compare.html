@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Compare two lists, remove duplicates, and find differences and intersections in your browser.">
+    <title>List Compare – Devtoolkit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico">
+    <style>
+        textarea.list-input,
+        textarea.list-output {
+            font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            resize: vertical;
+            white-space: pre;
+        }
+
+        .badge-count {
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        .results-table th {
+            background-color: #f1f3f5;
+        }
+    </style>
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Devtoolkit</a>
+        </div>
+    </nav>
+
+    <div class="container-fluid flex-grow-1 d-flex flex-column">
+        <div id="pageHeader"></div>
+
+        <main class="container mb-5">
+            <!-- Inputs Row -->
+            <div class="row g-4 mb-3 mt-1">
+                <!-- List A -->
+                <div class="col-lg-6">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                            <span class="fw-bold text-dark">List A</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-secondary badge-count" id="badgeA">0 items</span>
+                                <button type="button" id="copyA" class="btn btn-sm btn-outline-secondary" title="Copy List A to clipboard">Copy</button>
+                            </div>
+                        </div>
+                        <div class="card-body p-2">
+                            <textarea id="inputA" class="form-control list-input" rows="14" placeholder="Paste List A here (one item per line)..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="List A"></textarea>
+                        </div>
+                        <div class="card-footer bg-light py-2">
+                            <label for="fileA" class="form-label small text-muted mb-1 d-block">Or load from text file:</label>
+                            <input type="file" id="fileA" class="form-control form-control-sm" accept=".txt,.text,.csv">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- List B -->
+                <div class="col-lg-6">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                            <span class="fw-bold text-dark">List B</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-secondary badge-count" id="badgeB">0 items</span>
+                                <button type="button" id="copyB" class="btn btn-sm btn-outline-secondary" title="Copy List B to clipboard">Copy</button>
+                            </div>
+                        </div>
+                        <div class="card-body p-2">
+                            <textarea id="inputB" class="form-control list-input" rows="14" placeholder="Paste List B here (one item per line)..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="List B"></textarea>
+                        </div>
+                        <div class="card-footer bg-light py-2">
+                            <label for="fileB" class="form-label small text-muted mb-1 d-block">Or load from text file:</label>
+                            <input type="file" id="fileB" class="form-control form-control-sm" accept=".txt,.text,.csv">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions & Options Bar -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body py-3">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <button type="button" id="compareBtn" class="btn btn-primary px-4 fw-bold">Compare lists</button>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="caseInsensitive">
+                                <label class="form-check-label small" for="caseInsensitive">Case-insensitive</label>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="trimWhitespace" checked>
+                                <label class="form-check-label small" for="trimWhitespace">Trim whitespace</label>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" id="toggleReplacement" class="btn btn-sm btn-outline-secondary">&#9658; Text replacement tool</button>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Text Replacement Tool -->
+                    <div id="replacementTool" class="mt-3 p-3 bg-light border rounded" hidden>
+                        <h2 class="fw-bold mb-2 small text-uppercase text-secondary">Text Replacement Tool</h2>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-sm-4">
+                                <label for="replaceSearch" class="visually-hidden">Find</label>
+                                <input type="text" id="replaceSearch" class="form-control form-control-sm" placeholder="Find (string or regex)...">
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="replaceWith" class="visually-hidden">Replace with</label>
+                                <input type="text" id="replaceWith" class="form-control form-control-sm" placeholder="Replace with...">
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-check form-check-inline mb-0">
+                                    <input class="form-check-input" type="checkbox" id="replaceRegex">
+                                    <label class="form-check-label small" for="replaceRegex">Regex</label>
+                                </div>
+                            </div>
+                            <div class="col-sm-2 text-end">
+                                <button type="button" id="applyReplacement" class="btn btn-sm btn-outline-primary w-100">Replace in both</button>
+                            </div>
+                        </div>
+                        <p id="replaceError" class="text-danger small mb-0 mt-2" role="alert" hidden></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="card shadow-sm mb-4" hidden>
+                <div class="card-header bg-white py-3">
+                    <h2 class="h5 mb-0 fw-bold text-dark">Results</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Summary Statistics Table -->
+                    <div class="table-responsive mb-4">
+                        <table class="table table-bordered table-hover align-middle mb-0 results-table">
+                            <tbody>
+                                <tr>
+                                    <th scope="row" class="w-20 text-secondary">In list A:</th>
+                                    <td class="w-15"><span id="statInA" class="badge bg-secondary fs-6">0</span></td>
+                                    <td class="w-15"><button type="button" class="btn btn-sm btn-outline-primary" data-download="inA">Download list</button></td>
+                                    <th scope="row" class="w-20 text-secondary">Only in list A:</th>
+                                    <td class="w-15"><span id="statOnlyA" class="badge bg-primary fs-6">0</span></td>
+                                    <td class="w-15"><button type="button" class="btn btn-sm btn-outline-primary" data-download="onlyA">Download list</button></td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="text-secondary">In list B:</th>
+                                    <td><span id="statInB" class="badge bg-secondary fs-6">0</span></td>
+                                    <td><button type="button" class="btn btn-sm btn-outline-primary" data-download="inB">Download list</button></td>
+                                    <th scope="row" class="text-secondary">Only in list B:</th>
+                                    <td><span id="statOnlyB" class="badge bg-warning text-dark fs-6">0</span></td>
+                                    <td><button type="button" class="btn btn-sm btn-outline-primary" data-download="onlyB">Download list</button></td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="text-secondary">Difference:</th>
+                                    <td><span id="statDiff" class="badge bg-dark fs-6">0</span></td>
+                                    <td><span class="text-muted small"><em>(Count A &minus; Count B)</em></span></td>
+                                    <th scope="row" class="text-secondary">In both lists:</th>
+                                    <td><span id="statInBoth" class="badge bg-success fs-6">0</span></td>
+                                    <td><button type="button" class="btn btn-sm btn-outline-primary" data-download="inBoth">Download list</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Detailed Results Columns -->
+                    <div class="row g-4">
+                        <div class="col-lg-4">
+                            <div class="card h-100 border-primary-subtle">
+                                <div class="card-header bg-primary-subtle text-primary-emphasis d-flex justify-content-between align-items-center py-2">
+                                    <span class="fw-bold">Only in list A</span>
+                                    <span class="badge bg-primary badge-count" id="countBadgeOnlyA">0</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <textarea id="outputOnlyA" class="form-control list-output" rows="12" readonly spellcheck="false" aria-label="Only in list A"></textarea>
+                                </div>
+                                <div class="card-footer bg-white d-flex justify-content-between py-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-copy="outputOnlyA">Copy</button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-download="onlyA">Download</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4">
+                            <div class="card h-100 border-warning-subtle">
+                                <div class="card-header bg-warning-subtle text-warning-emphasis d-flex justify-content-between align-items-center py-2">
+                                    <span class="fw-bold">Only in list B</span>
+                                    <span class="badge bg-warning text-dark badge-count" id="countBadgeOnlyB">0</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <textarea id="outputOnlyB" class="form-control list-output" rows="12" readonly spellcheck="false" aria-label="Only in list B"></textarea>
+                                </div>
+                                <div class="card-footer bg-white d-flex justify-content-between py-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-copy="outputOnlyB">Copy</button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark" data-download="onlyB">Download</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4">
+                            <div class="card h-100 border-success-subtle">
+                                <div class="card-header bg-success-subtle text-success-emphasis d-flex justify-content-between align-items-center py-2">
+                                    <span class="fw-bold">In both lists</span>
+                                    <span class="badge bg-success badge-count" id="countBadgeInBoth">0</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <textarea id="outputInBoth" class="form-control list-output" rows="12" readonly spellcheck="false" aria-label="In both lists"></textarea>
+                                </div>
+                                <div class="card-footer bg-white d-flex justify-content-between py-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-copy="outputInBoth">Copy</button>
+                                    <button type="button" class="btn btn-sm btn-outline-success" data-download="inBoth">Download</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Help & Tips Section -->
+            <div class="accordion shadow-sm" id="accordionHelp">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingHelp">
+                        <button class="accordion-button collapsed py-2 text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseHelp" aria-expanded="false" aria-controls="collapseHelp">
+                            How this tool works
+                        </button>
+                    </h2>
+                    <div id="collapseHelp" class="accordion-collapse collapse" aria-labelledby="headingHelp" data-bs-parent="#accordionHelp">
+                        <div class="accordion-body small text-muted">
+                            <p class="mb-1"><strong>Deduplication:</strong> When you click "Compare lists", duplicates inside List A and duplicates inside List B are automatically removed.</p>
+                            <p class="mb-1"><strong>Case Sensitivity:</strong> By default, comparisons are case-sensitive (<kbd>Item</kbd> is different from <kbd>item</kbd>). Toggle "Case-insensitive" to treat them as identical.</p>
+                            <p class="mb-1"><strong>Downloads:</strong> Click "Download list" on any category to save a text file generated directly in your browser.</p>
+                            <p class="mb-0"><strong>Privacy:</strong> Everything runs locally inside your browser. No data leaves your computer.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <footer class="bg-light">
+        <div class="text-center py-2">DevToolKit fork me on <a href="https://github.com/TheLastRKoch/devtoolkit" target="_blank" rel="noopener noreferrer">github</a></div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/scripts/browser-session.js"></script>
+    <script src="/static/scripts/page-header.js"></script>
+    <script src="/static/scripts/list-compare.js"></script>
+</body>
+
+</html>
