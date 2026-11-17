@@ -13,6 +13,8 @@ required behavior. Relevant constraints of the current codebase:
 - Tests run the real page scripts against a hand-rolled mock DOM
   (`test/helpers/mock-dom.js`), injecting library globals as stubs (the Quill
   stub is the existing precedent).
+- Pages avoid Bootstrap's JavaScript bundle; interactive widgets are built with
+  plain DOM and Bootstrap CSS only (tests enforce that).
 - The session store persists a plain string `content`, so no store changes are
   needed.
 
@@ -25,6 +27,8 @@ required behavior. Relevant constraints of the current codebase:
 - Keep the language detector and most page logic unit-testable in Node without a
   browser or network access.
 - Keep the code surface a plain-text editor: stored content round-trips exactly.
+- Expose the language override through the shared Options dropdown and a modal,
+  leaving the status-bar language label non-interactive.
 
 **Non-Goals:**
 
@@ -33,7 +37,8 @@ required behavior. Relevant constraints of the current codebase:
 - No language server features (linting, diagnostics, completion beyond the
   built-in basic-setup completion), no multi-file or file-system support.
 - No persistence of the manually selected language; it is a view-only override
-  that resets to `Auto` on reload.
+  that resets to `Auto` on reload. There are no per-language editor settings
+  (indentation, keymaps, or linting).
 
 ## Decisions
 
@@ -94,24 +99,41 @@ Language packages are loaded lazily on first use and cached. `basicSetup`
 supplies line numbers, history, bracket matching, search, and the active line,
 so no manual extension assembly is needed.
 
-### Decision: Heuristic auto-detection over a fixed supported set
+### Decision: Heuristic auto-detection over the 20 supported languages
 
 `detectLanguage` scores the content and returns a stable language id from:
-Plain Text (fallback), JavaScript, TypeScript, JSON, HTML, CSS, Markdown,
-Python, SQL, XML.
+Plain Text (fallback), JavaScript, TypeScript, Python, Java, C#, C++, C, Go,
+Rust, PHP, Ruby, SQL, Kotlin, Swift, Shell, HTML, CSS, JSON, XML, Markdown.
 
-Ordering and signals:
+Ordering and signals (first match wins):
 
-1. `JSON.parse` succeeds and the trimmed content starts with `{` or `[` → JSON.
-2. Content starts with `<` and contains tags → HTML, or XML when a declaration
-   or non-HTML root element is present.
-3. CSS: `selector { prop: value; }` shape.
-4. Markdown: heading/list/fence/emphasis markers dominate the lines.
-5. SQL: leading `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`CREATE` keywords.
-6. Python: `def`/`class`/`import` plus colon-terminated blocks.
-7. JavaScript vs TypeScript: `interface`/`: type`/`as ` annotations → TypeScript,
-   otherwise JavaScript for `function`/`const`/`let`/arrow/`console.`/`import`.
-8. Anything else → Plain Text.
+1. PHP: starts with `<?php`.
+2. JSON: `JSON.parse` succeeds and the trimmed content starts with `{` or `[`.
+3. HTML/XML: starts with `<` and contains tags; XML for an XML declaration or a
+   non-HTML root element, HTML otherwise.
+4. CSS: `selector { prop: value; }` shape with known properties.
+5. Markdown: heading/list/fence/emphasis markers dominate the lines.
+6. Shell: a `sh`/`bash`/`zsh` shebang, or `if ... then`, `fi`, `done`, and
+   `$VAR`/`$(...)` structure; a `node` shebang is not Shell.
+7. SQL: leading `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`CREATE` keywords.
+8. Python: `def`/`class`/`import` plus colon-terminated blocks.
+9. Rust: `fn main`, `let mut`, `println!`, `use std::`, `impl`.
+10. Go: `package` with `func`, `fmt.`, `:=`.
+11. Ruby: `def ... end`, `require`, `puts`, `do |`, `attr_`.
+12. Kotlin: `fun `, `val`/`var`, `println(`, `data class`, `?:`.
+13. Swift: `import Foundation`/`UIKit`, `func ... ->`, `guard let`, `print(`.
+14. C#: `using System`, `Console.`, `namespace`, `{ get; set; }`.
+15. Java: `import java.`, `System.out`, `public static void main`, `@Override`.
+16. C++: `#include <iostream>`, `std::`, `cout <<`, `template<`.
+17. C: `#include <stdio.h>`, `printf(`, `int main(`.
+18. JavaScript vs TypeScript: `interface`/`: type`/`as ` annotations →
+    TypeScript, otherwise JavaScript for `function`/`const`/`let`/arrow/
+    `console.`/`import`.
+19. Anything else → Plain Text.
+
+The C-family checks are ordered C# → Java → C++ → C and each requires its own
+library or header marker, so `#include <stdio.h>` is not read as C++ and `using
+System` is not read as Java.
 
 Detection runs on document changes with a short debounce (~150 ms) so large
 pastes do not re-detect on every keystroke; the character count updates
@@ -121,15 +143,47 @@ Alternatives considered: a third-party guesser (extra dependency, non-testable
 determinism) and CM6 `language-data` auto-detection (not part of CM6; the
 `LanguageDescription.matchFilename` helpers need filenames, not content).
 
-### Decision: Status bar language menu reuses the header's plain-DOM pattern
+### Decision: Official language packages, with legacy stream modes for the rest
 
-The bottom status bar is a flex row: a language dropdown button on the left and
-the character count on the right. The dropdown is built with plain DOM and click/
-`Escape` handling like `page-header.js` rather than Bootstrap JS, because pages
-already avoid loading `bootstrap.bundle` (and tests enforce that). The button
-label shows the active language (`Auto: JavaScript` while detecting, or the
-overridden language). Manual selection sets `manualLanguage`; content changes do
-not clear it; selecting `Auto` clears it and re-runs detection.
+Fourteen language modes come from official `@codemirror/lang-*` packages:
+JavaScript/TypeScript, JSON, HTML, CSS, Markdown, Python, SQL, XML, Java, C++,
+PHP, Rust, and Go.
+
+Six modes have no official package, so the surface loads
+`@codemirror/legacy-modes@6.5.5` subpaths — `mode/clike` (C, C#, Kotlin),
+`mode/ruby`, `mode/shell`, `mode/swift` — and wraps each mode with
+`StreamLanguage.define` from the already-mapped `@codemirror/language`.
+
+The import map adds exact versions for the five additional official packages and
+a trailing-slash mapping for `@codemirror/legacy-modes/`. Legacy mode modules are
+pure mode definitions with no imports of their own, so the prefix mapping cannot
+create a second `@codemirror/language` instance.
+
+Alternative considered: loading only official languages and leaving the rest on
+plain text — rejected because the requested dropdown offers the 20 common
+languages.
+
+### Decision: Non-interactive language label plus an Options modal
+
+The bottom status bar is a flex row: a text label on the left and the character
+count on the right. The label reads `Auto: <Language>` while auto-detecting and
+`<Language>` after a manual choice; it is not a control. `text-truncate` keeps a
+long label from pushing the character count off narrow screens.
+
+The override lives behind the header's `Change language format` option, which
+opens `#languageDialog` — a plain-DOM dialog (`role="dialog"`,
+`aria-modal="true"`, hidden by default) containing `<select id="languageSelect">`,
+`#languageApply`, and `#languageCancel`. The select lists `Auto`, `Plain Text`,
+then the 20 languages alphabetically, preselected to the current mode. Opening
+focuses the select. Cancel, `Escape`, or a backdrop click closes without changing
+anything; Apply maps `Auto` to automatic detection, `Plain Text` to plain text,
+and any other value to that language, applies the highlighting, and closes.
+Reopening recomputes the preselection.
+
+Bootstrap's JavaScript bundle stays unloaded (tests enforce that), so the dialog
+is plain DOM with Bootstrap CSS classes for styling and its own focus and
+`Escape` handling. Alternative considered: a `<select>` in the status bar —
+rejected because the user asked for a label there and a modal override.
 
 ### Decision: Reuse the text editor's session pattern verbatim
 
@@ -156,8 +210,20 @@ content scroll together and the footer stays at the bottom.
 - **CDN outage blocks editing** → Render the page shell and header regardless;
   show a header warning ("The code editor could not be loaded") and keep the
   session readable in storage. No data is lost.
-- **Heuristic detection mislabels ambiguous snippets** → The language menu
-  always allows a manual override, and `Auto` is clearly labelled.
+- **Heuristic detection mislabels ambiguous snippets, especially in the
+  C-family** → Ordered markers (C# → Java → C++ → C) plus the `Change language
+  format` modal always allow a manual override, and `Auto` is clearly labelled.
+- **Legacy stream modes highlight less precisely than Lezer grammars** →
+  Accepted for C, C#, Kotlin, Ruby, Shell, and Swift; they only style tokens and
+  do not change editing behavior. Official packages are preferred where they
+  exist.
+- **The 20-language surface grows the page's module graph** → Only the detected
+  or selected language chunk is imported, and loaded chunks are cached.
+- **The modal must work without Bootstrap JS** → Plain-DOM dialog with
+  focus-on-open, Escape/backdrop cancel, and harness tests for open, apply, and
+  cancel.
+- **A long language label crowds the status bar on narrow screens** → Truncate
+  the label and keep the character count right-aligned.
 - **Dynamic language imports add latency on first use** → Only the detected
   language chunk loads; subsequent switches reuse the cached module, and the
   editor stays usable in plain text until the chunk resolves.
