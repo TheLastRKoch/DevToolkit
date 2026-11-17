@@ -13,17 +13,23 @@ typed.
 
 - Add a new **Code Editor** page served at `/code-editor` and
   `/code-editor/<id>`.
-- Reuse the shared page header unchanged: the page title textbox and the Options
-  dropdown (with a `Clear editor` action) stay identical to the Text Editor.
+- Reuse the shared page header: the page title textbox stays identical to the
+  Text Editor, and the Options dropdown offers `Change language format` and
+  `Clear editor`.
 - Replace the Quill rich-text surface and its format bar with a CodeMirror 6
   editor built from the basic setup example (`basicSetup`), giving line numbers,
   undo/redo history, bracket matching, active-line highlighting, and search.
 - Load CodeMirror 6 as ES modules from a CDN, since the project has no bundler.
 - Detect the code language automatically from the editor content and apply the
-  matching syntax highlighting.
-- Add a status bar under the editor: a language control at the bottom-left that
-  shows the detected language and lets the user override it, plus a live
-  character count.
+  matching syntax highlighting across the 20 most common languages:
+  JavaScript, TypeScript, Python, Java, C#, C++, C, Go, Rust, PHP, Ruby, SQL,
+  Kotlin, Swift, Shell, HTML, CSS, JSON, XML, and Markdown.
+- Add a status bar under the editor: a non-interactive language label at the
+  bottom-left (`Auto: JavaScript` while detecting, or the chosen language) plus a
+  live character count.
+- Add a `Change language format` option that opens a modal with a language
+  dropdown offering `Auto`, `Plain Text`, and the 20 supported languages, so the
+  user can override detection or resume it.
 - Persist content through the existing browser session store under the new
   `code-editor` kind, with the same conditional-persistence rules (only titled
   sessions are stored, three versions, URL update, unsaved-change protection).
@@ -35,9 +41,9 @@ typed.
 ### New Capabilities
 
 - `code-editor-page`: serving the code editor routes, the shared header plus
-  CodeMirror editing surface, automatic language detection and highlighting,
-  the language/character-count status bar, and browser-session persistence and
-  isolation for the `code-editor` kind.
+  CodeMirror editing surface, automatic detection across 20 languages with a
+  modal override, the language-label/character-count status bar, and
+  browser-session persistence and isolation for the `code-editor` kind.
 
 ### Modified Capabilities
 
@@ -48,13 +54,16 @@ typed.
 
 - `server.js`: two new page routes (`/code-editor`, `/code-editor/:id`).
 - `public/code-editor.html`: new page shell loading the shared header, session
-  store, and the code editor script.
+  store, status-bar label, language modal, the pinned CodeMirror import map, and
+  the code editor scripts.
 - `public/static/scripts/code-editor.js`: new page script wiring CodeMirror 6,
-  language detection, the status bar, and the session store.
+  language detection, the status-bar label, the language modal, and the session
+  store.
 - `public/index.html`: New dropdown entry for Code Editor.
 - `public/static/scripts/gallery.js`: `KINDS`, `PAGE_BY_KIND`, and label mapping
   for `code-editor`.
 - `test/`: route, page-harness, and gallery assertions for the new kind.
 - New runtime dependency on CodeMirror 6 packages (`codemirror`,
-  `@codemirror/lang-*`) loaded from a CDN at page load; no npm dependency is
-  added to the server.
+  `@codemirror/lang-*`, and `@codemirror/legacy-modes` for languages without an
+  official package) loaded from a CDN; no npm dependency is added to the
+  server.
