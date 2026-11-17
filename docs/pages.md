@@ -88,8 +88,9 @@ const stored = store.content();
 - `snapshot()` records the staged content as a version when it differs from the
   most recent one; the page calls it when the user leaves the tab
   (`visibilitychange`, `pagehide`) or the window (`beforeunload`). `versions`
-  keeps the last three snapshots (FIFO). Text editor and markdown versions carry
-  `{ updatedDate, content }`; template versions also carry `variables`.
+  keeps the last three snapshots (FIFO). Text editor, markdown editor, and code
+  editor versions carry `{ updatedDate, content }`; template versions also
+  carry `variables`.
 - `content()` returns the staged content, falling back to the most recent
   snapshot, which is how a page restores its title and content on load.
 - `listAll()` (also exported as `DevToolkitSessions.listAll(storage)`) returns
@@ -122,6 +123,38 @@ conversion, which normalizes it as untrusted markup.
 one. It keeps the raw markdown pane and the rendered preview. Its only option is
 **Clear editor**.
 
+## Code editor page
+
+`/code-editor` starts a new session; `/code-editor/<id>` reopens a saved one. It
+replaces the rich-text surface with a CodeMirror 6 editor built from the basic
+setup, so line numbers, undo/redo, bracket matching, and in-editor search are
+available without configuration. CodeMirror 6 is ESM-only, so the page loads it
+from `esm.sh` through a pinned import map in `code-editor.html`; the page
+wire-up stays a classic, testable script.
+
+Content is stored and restored as plain text, so indentation, tabs, and line
+breaks round-trip exactly, and no rich-text formatting bar is present. Inside
+the editor, `Tab` inserts a tab at the cursor or indents the selected lines, and
+`Shift+Tab` removes one tab of indentation, so neither shortcut moves focus out
+of the surface; outside the editor, `Tab` keeps its normal focus navigation. The
+page detects the code language from the content and highlights it, covering
+JavaScript, TypeScript, Python, Java, C#, C++, C, Go, Rust, PHP, Ruby, SQL,
+Kotlin, Swift, Shell, HTML, CSS, JSON, XML, and Markdown, and falling back to
+Plain Text when nothing is recognized.
+
+The status bar under the editor shows the active language as a text label on its
+left — `Auto: JSON` while detecting, or `JSON` after a manual choice — and the
+live character count on the right. The label is not a language control.
+
+Its options are **Change language format** and **Clear editor**. `Change language
+format` opens a modal dialog whose dropdown offers `Auto`, `Plain Text`, and the
+20 supported languages, preselected to the current mode. Apply highlights the
+chosen language immediately, `Auto` resumes detection, and Cancel, `Escape`, or a
+backdrop click leave the language unchanged; editing the content keeps a manual
+selection. **Clear editor** empties the content and keeps the title. If
+CodeMirror or a language chunk cannot be loaded, the header shows a warning and
+the rest of the page stays usable.
+
 ## Home page gallery
 
 `/` lists every stored session as a card showing the session title and
@@ -129,7 +162,8 @@ one. It keeps the raw markdown pane and the rendered preview. Its only option is
 restores that session's content — the editor text, the raw markdown, or the
 template text and variables. Multiple sessions of one kind appear as separate
 cards. The filter buttons offer All plus one button per session kind
-(`text-editor`, `markdown-editor`, `template`), the search box filters by title,
+(`text-editor`, `markdown-editor`, `code-editor`, `template`, `list-compare`),
+the search box filters by title,
 the × button deletes only that session's `devtoolkit:sessions:<kind>:<id>` key,
 and an empty state is shown when nothing is saved. The New dropdown links to the
 ID-less `/<kind>` routes, so it always starts a fresh session rather than opening

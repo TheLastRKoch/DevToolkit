@@ -31,7 +31,8 @@ text-only empty state message without a folder icon or other decorative icon.
 
 - **WHEN** the user opens the home page
 - **THEN** the filter buttons show the kinds of stored sessions (e.g.,
-  `text-editor`, `markdown-editor`, `template`, `list-compare`) plus an "All" option
+  `text-editor`, `markdown-editor`, `code-editor`, `template`, `list-compare`)
+  plus an "All" option
 
 #### Scenario: Search filters sessions by title
 
@@ -87,9 +88,9 @@ List B inputs for a list compare session.
 ### Requirement: The New control starts a fresh session
 
 The gallery's New dropdown SHALL link each page type to its ID-less route
-(`/template`, `/text-editor`, `/markdown-editor`, `/list-compare`). Following a
-New link SHALL open an empty untitled session and SHALL NOT load a saved
-session.
+(`/template`, `/text-editor`, `/markdown-editor`, `/code-editor`,
+`/list-compare`). Following a New link SHALL open an empty untitled session and
+SHALL NOT load a saved session.
 
 #### Scenario: New template session
 
@@ -100,6 +101,11 @@ session.
 
 - **WHEN** the user selects List Compare from the New dropdown
 - **THEN** `/list-compare` opens with an empty untitled list compare session
+
+#### Scenario: New code editor session
+
+- **WHEN** the user selects Code Editor from the New dropdown
+- **THEN** `/code-editor` opens with an empty untitled code editor session
 
 #### Scenario: New session does not reuse a saved session
 
