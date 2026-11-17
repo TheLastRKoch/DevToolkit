@@ -56,6 +56,14 @@ test('GET /editor redirects permanently to /text-editor', async () => {
     assert.ok((await followed.text()).includes('Text Editor'));
 });
 
+test('GET /code-editor returns the code editor page', async () => {
+    const res = await getPage('/code-editor');
+    assert.equal(res.status, 200);
+    const body = await res.text();
+    assert.ok(body.includes('Code Editor'), 'code editor page should be named Code Editor');
+    assert.ok(body.includes('codeEditorMount'), 'code editor page should include its editing surface');
+});
+
 test('GET /markdown-editor returns the markdown editor page', async () => {
     const res = await getPage('/markdown-editor');
     assert.equal(res.status, 200);
@@ -75,14 +83,14 @@ test('GET /template returns the template page', async () => {
 });
 
 test('numeric session routes serve their page kind', async () => {
-    for (const path of ['/text-editor/1', '/markdown-editor/2', '/template/3']) {
+    for (const path of ['/text-editor/1', '/markdown-editor/2', '/code-editor/4', '/template/3']) {
         const res = await getPage(path);
         assert.equal(res.status, 200, `${path} should resolve`);
     }
 });
 
 test('non-numeric session routes are rejected', async () => {
-    for (const path of ['/text-editor/abc', '/markdown-editor/abc', '/template/abc']) {
+    for (const path of ['/text-editor/abc', '/markdown-editor/abc', '/code-editor/abc', '/template/abc']) {
         const res = await getPage(path);
         assert.equal(res.status, 404, `${path} should be rejected`);
     }

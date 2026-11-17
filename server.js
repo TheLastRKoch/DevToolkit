@@ -120,6 +120,9 @@ app.get('/text-editor/:id', serveSessionPage('text-editor.html'));
 app.get('/markdown-editor', servePage('markdown-editor.html'));
 app.get('/markdown-editor/:id', serveSessionPage('markdown-editor.html'));
 
+app.get('/code-editor', servePage('code-editor.html'));
+app.get('/code-editor/:id', serveSessionPage('code-editor.html'));
+
 app.get('/list-compare', servePage('list-compare.html'));
 app.get('/list-compare/:id', serveSessionPage('list-compare.html'));
 
