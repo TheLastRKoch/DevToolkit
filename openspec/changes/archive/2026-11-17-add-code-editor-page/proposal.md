@@ -19,6 +19,9 @@ typed.
 - Replace the Quill rich-text surface and its format bar with a CodeMirror 6
   editor built from the basic setup example (`basicSetup`), giving line numbers,
   undo/redo history, bracket matching, active-line highlighting, and search.
+- Keep the keyboard inside the code surface like an editor: `Tab` inserts a tab
+  at the cursor or indents the selected lines, and `Shift+Tab` removes one tab,
+  with neither shortcut moving focus out of the editor.
 - Load CodeMirror 6 as ES modules from a CDN, since the project has no bundler.
 - Detect the code language automatically from the editor content and apply the
   matching syntax highlighting across the 20 most common languages:
@@ -59,10 +62,15 @@ typed.
 - `public/static/scripts/code-editor.js`: new page script wiring CodeMirror 6,
   language detection, the status-bar label, the language modal, and the session
   store.
+- `public/static/scripts/code-editor-surface.js`: new CodeMirror 6 surface
+  module with the editing extensions, lazy language loading, and the
+  `Tab`/`Shift+Tab` indentation keymap.
 - `public/index.html`: New dropdown entry for Code Editor.
 - `public/static/scripts/gallery.js`: `KINDS`, `PAGE_BY_KIND`, and label mapping
   for `code-editor`.
 - `test/`: route, page-harness, and gallery assertions for the new kind.
+- `docs/pages.md`: the Code Editor section, including the `Tab`/`Shift+Tab`
+  indent and outdent behavior.
 - New runtime dependency on CodeMirror 6 packages (`codemirror`,
   `@codemirror/lang-*`, and `@codemirror/legacy-modes` for languages without an
   official package) loaded from a CDN; no npm dependency is added to the

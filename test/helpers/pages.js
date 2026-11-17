@@ -251,7 +251,10 @@ function openCodeEditorPage(storage, { clock, title, content, sessionId, without
     }
     const stub = createCodeSurfaceStub();
     const page = buildHarness({
-        ids: ['codeEditorMount', 'languageButton', 'languageMenu', 'charCount'],
+        ids: [
+            'codeEditorMount', 'languageLabel', 'charCount', 'languageDialog',
+            'languageSelect', 'languageApply', 'languageCancel',
+        ],
         script: readScript('code-editor.js'),
         storage,
         clock,
@@ -264,21 +267,33 @@ function openCodeEditorPage(storage, { clock, title, content, sessionId, without
                 DevToolkitCodeEditorSurface: stub.surface,
             },
     });
-    page.element('languageMenu').hidden = true;
+    page.element('languageDialog').hidden = true;
     page.surface = stub.instances[0];
     page.typeCode = (value) => page.surface.setValue(value);
     page.charCount = () => page.element('charCount').textContent;
-    page.languageButtonLabel = () => page.element('languageButton').textContent;
-    page.languageLabels = () => page.element('languageMenu').children.map((item) => item.children[0].textContent);
+    page.languageLabel = () => page.element('languageLabel').textContent;
+    page.languageLabels = () => page.element('languageSelect').children.map((option) => option.textContent);
+    page.languageSelection = () => page.element('languageSelect').value;
+    page.openLanguageDialog = () => {
+        page.openOptions();
+        page.selectOption(0);
+    };
+    page.isLanguageDialogOpen = () => !page.element('languageDialog').hidden;
     page.chooseLanguage = (label) => {
-        const item = page.element('languageMenu').children
-            .find((child) => child.children[0].textContent === label);
-        if (!item) {
+        const option = page.element('languageSelect').children
+            .find((child) => child.textContent === label);
+        if (!option) {
             throw new Error(`No language option labelled ${label}`);
         }
-        item.children[0].dispatch('click', {});
+        page.element('languageSelect').value = option.value;
     };
-    page.openLanguageMenu = () => page.element('languageButton').dispatch('click', { preventDefault() {} });
+    page.applyLanguage = () => page.element('languageApply').dispatch('click', {});
+    page.cancelLanguage = () => page.element('languageCancel').dispatch('click', {});
+    page.escapeLanguageDialog = () => page.document.dispatch('keydown', { key: 'Escape' });
+    page.backdropClickLanguageDialog = () => {
+        const dialog = page.element('languageDialog');
+        dialog.dispatch('click', { target: dialog });
+    };
     page.waitForDetection = () => new Promise((resolve) => setTimeout(resolve, 250));
     return page;
 }

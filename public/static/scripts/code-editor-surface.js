@@ -6,7 +6,16 @@
  * classic, testable script, then starts the page once both sides are ready.
  */
 import { EditorView, basicSetup } from 'codemirror';
-import { Compartment } from '@codemirror/state';
+import { Compartment, Prec } from '@codemirror/state';
+import { StreamLanguage, indentUnit } from '@codemirror/language';
+import { keymap } from '@codemirror/view';
+import { insertTab, indentLess } from '@codemirror/commands';
+
+/** Wraps a legacy stream mode, loaded lazily on first use. */
+function legacyMode(path, name) {
+    return import(`@codemirror/legacy-modes/mode/${path}`)
+        .then((module) => StreamLanguage.define(module[name]));
+}
 
 const languageLoaders = {
     javascript: () => import('@codemirror/lang-javascript').then((mod) => mod.javascript()),
@@ -18,6 +27,17 @@ const languageLoaders = {
     python: () => import('@codemirror/lang-python').then((mod) => mod.python()),
     sql: () => import('@codemirror/lang-sql').then((mod) => mod.sql()),
     xml: () => import('@codemirror/lang-xml').then((mod) => mod.xml()),
+    java: () => import('@codemirror/lang-java').then((mod) => mod.java()),
+    cpp: () => import('@codemirror/lang-cpp').then((mod) => mod.cpp()),
+    php: () => import('@codemirror/lang-php').then((mod) => mod.php()),
+    rust: () => import('@codemirror/lang-rust').then((mod) => mod.rust()),
+    go: () => import('@codemirror/lang-go').then((mod) => mod.go()),
+    c: () => legacyMode('clike', 'c'),
+    csharp: () => legacyMode('clike', 'csharp'),
+    kotlin: () => legacyMode('clike', 'kotlin'),
+    ruby: () => legacyMode('ruby', 'ruby'),
+    shell: () => legacyMode('shell', 'shell'),
+    swift: () => legacyMode('swift', 'swift'),
 };
 
 const loadedLanguages = new Map();
@@ -66,6 +86,8 @@ function create(config) {
     const view = new EditorView({
         doc: typeof settings.doc === 'string' ? settings.doc : '',
         extensions: [
+            Prec.highest(keymap.of([{ key: 'Tab', run: insertTab, shift: indentLess }])),
+            indentUnit.of('\t'),
             basicSetup,
             editorTheme,
             languageCompartment.of([]),
