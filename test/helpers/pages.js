@@ -13,6 +13,7 @@ const path = require('node:path');
 
 const sessionsModule = require('../../public/static/scripts/browser-session.js');
 const pageHeaderModule = require('../../public/static/scripts/page-header.js');
+const codeLanguageModule = require('../../public/static/scripts/code-language.js');
 const { createDom, createWindow, runScript, withDocument } = require('./mock-dom.js');
 
 const root = path.join(__dirname, '../..');
@@ -213,6 +214,75 @@ function openTextEditorPage(storage, { clock, initialHtml, title, sessionId } = 
     return page;
 }
 
+function createCodeSurfaceStub() {
+    const instances = [];
+    function create(config) {
+        const instance = {
+            config,
+            value: typeof config.doc === 'string' ? config.doc : '',
+            languages: [],
+            writes: [],
+            getValue: () => instance.value,
+            getLength: () => instance.value.length,
+            setValue: (value, options) => {
+                instance.value = value;
+                instance.writes.push({ value, silent: Boolean(options && options.silent) });
+                if (!(options && options.silent) && typeof config.onChange === 'function') {
+                    config.onChange(value);
+                }
+            },
+            setLanguage: (id) => {
+                instance.languages.push(id);
+            },
+            focus: () => {},
+            destroy: () => {},
+        };
+        instances.push(instance);
+        return instance;
+    }
+    return { surface: { create }, instances };
+}
+
+function openCodeEditorPage(storage, { clock, title, content, sessionId, withoutSurface } = {}) {
+    let targetId = sessionId;
+    if (title !== undefined) {
+        const store = seedSession(storage, 'code-editor', { title, content: content || '' }, clock, targetId);
+        targetId = store.getId();
+    }
+    const stub = createCodeSurfaceStub();
+    const page = buildHarness({
+        ids: ['codeEditorMount', 'languageButton', 'languageMenu', 'charCount'],
+        script: readScript('code-editor.js'),
+        storage,
+        clock,
+        sessionId: targetId,
+        kind: 'code-editor',
+        globals: withoutSurface
+            ? { DevToolkitCodeLanguage: codeLanguageModule }
+            : {
+                DevToolkitCodeLanguage: codeLanguageModule,
+                DevToolkitCodeEditorSurface: stub.surface,
+            },
+    });
+    page.element('languageMenu').hidden = true;
+    page.surface = stub.instances[0];
+    page.typeCode = (value) => page.surface.setValue(value);
+    page.charCount = () => page.element('charCount').textContent;
+    page.languageButtonLabel = () => page.element('languageButton').textContent;
+    page.languageLabels = () => page.element('languageMenu').children.map((item) => item.children[0].textContent);
+    page.chooseLanguage = (label) => {
+        const item = page.element('languageMenu').children
+            .find((child) => child.children[0].textContent === label);
+        if (!item) {
+            throw new Error(`No language option labelled ${label}`);
+        }
+        item.children[0].dispatch('click', {});
+    };
+    page.openLanguageMenu = () => page.element('languageButton').dispatch('click', { preventDefault() {} });
+    page.waitForDetection = () => new Promise((resolve) => setTimeout(resolve, 250));
+    return page;
+}
+
 const LIST_COMPARE_IDS = [
     'inputA', 'inputB', 'badgeA', 'badgeB', 'compareBtn', 'caseInsensitive', 'trimWhitespace',
     'replacementTool', 'replaceSearch', 'replaceWith', 'replaceRegex', 'replaceError',
@@ -304,6 +374,7 @@ module.exports = {
     openMarkdownPage,
     openTextEditorPage,
     openListComparePage,
+    openCodeEditorPage,
     openGalleryPage,
     seedSession,
     storedSession,

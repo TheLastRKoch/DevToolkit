@@ -18,11 +18,12 @@
     }
 }(typeof globalThis === 'object' ? globalThis : this, function () {
     const STORAGE_PREFIX = 'devtoolkit:sessions:';
-    const KINDS = ['text-editor', 'markdown-editor', 'template', 'list-compare'];
+    const KINDS = ['text-editor', 'markdown-editor', 'code-editor', 'template', 'list-compare'];
     const ALL_KINDS = 'All';
     const PAGE_BY_KIND = {
         'text-editor': '/text-editor',
         'markdown-editor': '/markdown-editor',
+        'code-editor': '/code-editor',
         template: '/template',
         'list-compare': '/list-compare',
     };

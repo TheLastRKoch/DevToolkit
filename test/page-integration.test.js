@@ -6,6 +6,7 @@ const {
     openTemplatePage,
     openMarkdownPage,
     openTextEditorPage,
+    openCodeEditorPage,
     openGalleryPage,
     readPage,
     readScript,
@@ -17,6 +18,7 @@ const PAGES = [
     { script: 'template.js', file: 'template.html', options: ['Clear variables', 'Clear all'] },
     { script: 'text-editor.js', file: 'text-editor.html', options: ['Clear editor'] },
     { script: 'markdown-editor.js', file: 'markdown-editor.html', options: ['Clear editor'] },
+    { script: 'code-editor.js', file: 'code-editor.html', options: ['Clear editor'] },
 ];
 
 let server;
@@ -103,6 +105,7 @@ test('the shared header renders the same row on every page with its own content'
         openTemplatePage(storage),
         openTextEditorPage(storage),
         openMarkdownPage(storage),
+        openCodeEditorPage(storage),
     ];
 
     const rows = pages.map((page) => page.headerElement());
@@ -115,7 +118,7 @@ test('the shared header renders the same row on every page with its own content'
         assert.deepEqual(row.children.map((child) => child.getAttribute('class')), layout, 'every page uses the same header row layout');
     }
 
-    assert.deepEqual(pages.map((page) => page.element('pageOptionsToggle').textContent), ['Options', 'Options', 'Options']);
+    assert.deepEqual(pages.map((page) => page.element('pageOptionsToggle').textContent), ['Options', 'Options', 'Options', 'Options']);
     for (const page of pages) {
         assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
         assert.equal(page.document.title, 'Devtoolkit', 'an untitled page keeps the default tab title');
@@ -158,6 +161,7 @@ test('each page starts fresh at its ID-less route and gains an ID after the firs
         { kind: 'template', open: openTemplatePage },
         { kind: 'text-editor', open: openTextEditorPage },
         { kind: 'markdown-editor', open: openMarkdownPage },
+        { kind: 'code-editor', open: openCodeEditorPage },
     ];
 
     for (const { kind, open } of cases) {
