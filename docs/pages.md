@@ -133,16 +133,27 @@ from `esm.sh` through a pinned import map in `code-editor.html`; the page
 wire-up stays a classic, testable script.
 
 Content is stored and restored as plain text, so indentation, tabs, and line
-breaks round-trip exactly, and no rich-text formatting bar is present. The page
-detects the code language from the content (JavaScript, TypeScript, JSON, HTML,
-CSS, Markdown, Python, SQL, XML, or Plain Text) and highlights accordingly. The
-status bar under the editor shows the active language in a menu on the left —
-`Auto: JSON` while detecting, or the manually chosen language — and the live
-character count on the right. Choosing a language overrides detection until
-`Auto` is selected again; changing the content keeps a manual selection. Its
-only option is **Clear editor**, which empties the content and keeps the title.
-If CodeMirror or a language chunk cannot be loaded, the header shows a warning
-and the rest of the page stays usable.
+breaks round-trip exactly, and no rich-text formatting bar is present. Inside
+the editor, `Tab` inserts a tab at the cursor or indents the selected lines, and
+`Shift+Tab` removes one tab of indentation, so neither shortcut moves focus out
+of the surface; outside the editor, `Tab` keeps its normal focus navigation. The
+page detects the code language from the content and highlights it, covering
+JavaScript, TypeScript, Python, Java, C#, C++, C, Go, Rust, PHP, Ruby, SQL,
+Kotlin, Swift, Shell, HTML, CSS, JSON, XML, and Markdown, and falling back to
+Plain Text when nothing is recognized.
+
+The status bar under the editor shows the active language as a text label on its
+left — `Auto: JSON` while detecting, or `JSON` after a manual choice — and the
+live character count on the right. The label is not a language control.
+
+Its options are **Change language format** and **Clear editor**. `Change language
+format` opens a modal dialog whose dropdown offers `Auto`, `Plain Text`, and the
+20 supported languages, preselected to the current mode. Apply highlights the
+chosen language immediately, `Auto` resumes detection, and Cancel, `Escape`, or a
+backdrop click leave the language unchanged; editing the content keeps a manual
+selection. **Clear editor** empties the content and keeps the title. If
+CodeMirror or a language chunk cannot be loaded, the header shows a warning and
+the rest of the page stays usable.
 
 ## Home page gallery
 

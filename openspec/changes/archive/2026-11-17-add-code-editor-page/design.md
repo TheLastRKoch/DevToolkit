@@ -27,6 +27,8 @@ required behavior. Relevant constraints of the current codebase:
 - Keep the language detector and most page logic unit-testable in Node without a
   browser or network access.
 - Keep the code surface a plain-text editor: stored content round-trips exactly.
+- Let `Tab` and `Shift+Tab` indent and outdent inside the editor, as in VSCode,
+  without moving focus out of the surface.
 - Expose the language override through the shared Options dropdown and a modal,
   leaving the status-bar language label non-interactive.
 
@@ -38,7 +40,8 @@ required behavior. Relevant constraints of the current codebase:
   built-in basic-setup completion), no multi-file or file-system support.
 - No persistence of the manually selected language; it is a view-only override
   that resets to `Auto` on reload. There are no per-language editor settings
-  (indentation, keymaps, or linting).
+  (indentation, keymaps, or linting); one indentation unit and one Tab binding
+  apply to every language.
 
 ## Decisions
 
@@ -143,6 +146,34 @@ Alternatives considered: a third-party guesser (extra dependency, non-testable
 determinism) and CM6 `language-data` auto-detection (not part of CM6; the
 `LanguageDescription.matchFilename` helpers need filenames, not content).
 
+### Decision: Tab indents inside the editor instead of moving focus
+
+`basicSetup` does not bind `Tab`, so the browser's default focus traversal leaves
+the editor on every Tab press. The surface adds a high-precedence keymap,
+`Prec.highest(keymap.of([{ key: 'Tab', run: insertTab, shift: indentLess }]))`,
+importing `insertTab` and `indentLess` from `@codemirror/commands` (already
+pinned in the import map), `keymap` from `@codemirror/view`, and `Prec` from
+`@codemirror/state`.
+
+The editor also sets `indentUnit.of('\t')`. With that unit, `insertTab` inserts a
+literal tab at a cursor and delegates to `indentMore` for a selection, so both
+paths indent by exactly one tab. `indentLess` removes one tab stop
+(`getIndentUnit` uses the tab width when the unit is a tab), so `Shift+Tab`
+deletes a leading tab or the equivalent number of leading spaces and writes any
+remainder back as spaces. Both commands return `true`, which stops the browser
+from moving focus. The binding applies only while the editor is focused, so the
+title textbox and Options dropdown keep normal Tab navigation.
+
+Alternatives considered:
+
+- **`indentWithTab`** — binds `Tab` to `indentMore`, which shifts whole lines
+  even with a bare cursor and never inserts at the cursor; not VSCode's
+  behaviour.
+- **A custom Tab handler** — duplicates `insertTab`/`indentLess` and drifts from
+  CodeMirror's indentation handling.
+- **Leaving the browser default** — `Tab` leaves the editor and cannot be used
+  for indentation.
+
 ### Decision: Official language packages, with legacy stream modes for the rest
 
 Fourteen language modes come from official `@codemirror/lang-*` packages:
@@ -232,6 +263,11 @@ content scroll together and the footer stays at the bottom.
   characters, consistent with the markdown editor's count.
 - **Auto-detection on large pastes** → Debounced and bounded to a content prefix
   (first ~20 KB) for scoring; highlighting still applies to the full document.
+- **Capturing `Tab` removes keyboard-only focus traversal out of the editor** →
+  The binding is scoped to the focused editor, so the rest of the page keeps
+  normal Tab behaviour and the header stays reachable with a pointer or by
+  tabbing in from the title textbox. Matching VSCode's editing behaviour is the
+  explicit requirement.
 
 ## Migration Plan
 

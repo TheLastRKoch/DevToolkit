@@ -15,9 +15,12 @@
     const DETECTION_DELAY = 150;
 
     const mount = document.getElementById('codeEditorMount');
-    const languageButton = document.getElementById('languageButton');
-    const languageMenu = document.getElementById('languageMenu');
+    const languageLabelEl = document.getElementById('languageLabel');
     const charCountEl = document.getElementById('charCount');
+    const languageDialog = document.getElementById('languageDialog');
+    const languageSelect = document.getElementById('languageSelect');
+    const languageApply = document.getElementById('languageApply');
+    const languageCancel = document.getElementById('languageCancel');
 
     let started = false;
     let header = null;
@@ -43,69 +46,80 @@
         charCountEl.textContent = String(surface ? surface.getLength() : 0);
     }
 
-    function updateLanguageButton() {
-        if (!languageButton) {
+    /** The status bar shows the language as a label, never as a control. */
+    function updateLanguageLabel() {
+        if (!languageLabelEl) {
             return;
         }
         const label = languageLabel(manualLanguage || detectedLanguage);
-        languageButton.textContent = manualLanguage ? label : `Auto: ${label}`;
+        languageLabelEl.textContent = manualLanguage ? label : `Auto: ${label}`;
     }
 
     function applyLanguage(id) {
         if (surface) {
             surface.setLanguage(id);
         }
-        updateLanguageButton();
+        updateLanguageLabel();
     }
 
-    function setMenuOpen(open) {
-        if (!languageMenu) {
-            return;
-        }
-        languageMenu.hidden = !open;
-        if (open) {
-            languageMenu.classList.add('show');
-        } else {
-            languageMenu.classList.remove('show');
-        }
-        if (languageButton) {
-            languageButton.setAttribute('aria-expanded', String(Boolean(open)));
-        }
+    function isDialogOpen() {
+        return Boolean(languageDialog) && !languageDialog.hidden;
     }
 
-    function selectLanguage(id) {
-        manualLanguage = id === null ? null : id;
-        if (manualLanguage) {
-            applyLanguage(manualLanguage);
+    function buildLanguageSelect() {
+        if (!languageSelect) {
             return;
         }
-        detectedLanguage = DevToolkitCodeLanguage.detectLanguage(currentValue());
-        applyLanguage(detectedLanguage);
-    }
-
-    function buildLanguageMenu() {
-        if (!languageMenu) {
-            return;
-        }
-        const entries = [{ id: null, label: 'Auto' }].concat(DevToolkitCodeLanguage.LANGUAGES);
+        const entries = [{ id: 'auto', label: 'Auto' }].concat(DevToolkitCodeLanguage.LANGUAGES);
         for (const entry of entries) {
-            const item = document.createElement('li');
-            const action = document.createElement('button');
-            action.setAttribute('type', 'button');
-            action.setAttribute('class', 'dropdown-item');
-            if (entry.id === null) {
-                action.setAttribute('data-language', 'auto');
-            } else {
-                action.setAttribute('data-language', entry.id);
-            }
-            action.textContent = entry.label;
-            action.addEventListener('click', () => {
-                setMenuOpen(false);
-                selectLanguage(entry.id);
-            });
-            item.appendChild(action);
-            languageMenu.appendChild(item);
+            const option = document.createElement('option');
+            option.setAttribute('value', entry.id);
+            option.value = entry.id;
+            option.textContent = entry.label;
+            languageSelect.appendChild(option);
         }
+    }
+
+    function setDialogOpen(open) {
+        if (!languageDialog) {
+            return;
+        }
+        languageDialog.hidden = !open;
+        if (!open) {
+            return;
+        }
+        if (languageSelect) {
+            languageSelect.value = manualLanguage || 'auto';
+            if (typeof languageSelect.focus === 'function') {
+                languageSelect.focus();
+            }
+        }
+    }
+
+    function openLanguageDialog() {
+        setDialogOpen(true);
+    }
+
+    function closeLanguageDialog() {
+        setDialogOpen(false);
+    }
+
+    /** `Auto` resumes detection; any other value pins that language. */
+    function applyLanguageChoice() {
+        const choice = languageSelect ? languageSelect.value : 'auto';
+        setDialogOpen(false);
+        if (detectionTimer) {
+            clearTimeout(detectionTimer);
+            detectionTimer = null;
+        }
+        if (!choice || choice === 'auto') {
+            manualLanguage = null;
+            detectedLanguage = DevToolkitCodeLanguage.detectLanguage(currentValue());
+            applyLanguage(detectedLanguage);
+            return;
+        }
+        manualLanguage = choice;
+        applyLanguage(manualLanguage);
     }
 
     /** Persists the edited content once the session is titled. */
@@ -240,6 +254,7 @@
             persisted: store.isPersisted(),
             onTitleChange,
             options: [
+                { id: 'change-language', label: 'Change language format', run: openLanguageDialog },
                 { id: 'clear-editor', label: 'Clear editor', run: clearEditor },
             ],
         });
@@ -248,7 +263,7 @@
             header.warn('The code editor could not be loaded.');
         }
 
-        buildLanguageMenu();
+        buildLanguageSelect();
         updateCharCount();
         detectedLanguage = DevToolkitCodeLanguage.detectLanguage(stored.content);
         applyLanguage(detectedLanguage);
@@ -262,31 +277,22 @@
         window.addEventListener('pagehide', snapshot);
         window.addEventListener('beforeunload', protectUnsavedWork);
 
-        if (languageButton) {
-            languageButton.addEventListener('click', (event) => {
-                if (event && typeof event.preventDefault === 'function') {
-                    event.preventDefault();
+        if (languageApply) {
+            languageApply.addEventListener('click', applyLanguageChoice);
+        }
+        if (languageCancel) {
+            languageCancel.addEventListener('click', closeLanguageDialog);
+        }
+        if (languageDialog) {
+            languageDialog.addEventListener('click', (event) => {
+                if (event && event.target === languageDialog) {
+                    closeLanguageDialog();
                 }
-                setMenuOpen(Boolean(languageMenu && languageMenu.hidden));
             });
         }
-        document.addEventListener('click', (event) => {
-            if (!languageMenu || languageMenu.hidden) {
-                return;
-            }
-            const target = event && event.target;
-            if (target === languageButton) {
-                return;
-            }
-            const dropdown = languageButton ? languageButton.parentNode : null;
-            if (dropdown && target && dropdown.contains(target)) {
-                return;
-            }
-            setMenuOpen(false);
-        });
         document.addEventListener('keydown', (event) => {
-            if (languageMenu && !languageMenu.hidden && event && event.key === 'Escape') {
-                setMenuOpen(false);
+            if (isDialogOpen() && event && event.key === 'Escape') {
+                closeLanguageDialog();
             }
         });
     }
@@ -294,7 +300,9 @@
     window.DevToolkitCodeEditor = {
         start,
         clearEditor,
-        selectLanguage,
+        openLanguageDialog,
+        closeLanguageDialog,
+        applyLanguageChoice,
         getLanguage: () => manualLanguage || detectedLanguage,
         isManualLanguage: () => Boolean(manualLanguage),
     };

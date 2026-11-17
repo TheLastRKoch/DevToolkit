@@ -1,4 +1,4 @@
-# Spec Delta
+# code-editor-page Specification
 
 ## Purpose
 
@@ -7,7 +7,7 @@ exactly, highlights it according to an automatically detected language, shows
 the active language and character count, and stores the work in the same
 browser-side sessions as the other editing pages.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: The code editor is served at the code editor endpoint
 
@@ -96,6 +96,37 @@ requiring the user to enable them.
 
 - **WHEN** the user opens search and enters text present in the editor
 - **THEN** the matching occurrences in the editor are highlighted
+
+### Requirement: The editor keeps the Tab key for indentation
+
+While the code editing surface has focus, `Tab` SHALL insert one tab at the
+cursor, or indent every selected line by one tab when a selection exists, and
+SHALL NOT move focus out of the editor. `Shift+Tab` SHALL remove one tab of
+indentation from the current line or from every selected line. Inserted
+indentation SHALL be stored as tab characters in the document. `Tab` outside the
+editor SHALL keep its normal focus-navigation behavior.
+
+#### Scenario: Tab inserts a tab instead of leaving the editor
+
+- **WHEN** the code editor has focus and the user presses `Tab` with no selection
+- **THEN** one tab character is inserted at the cursor, the editor keeps focus,
+  and the character count increases by one
+
+#### Scenario: Tab indents selected lines
+
+- **WHEN** the user selects several lines in the editor and presses `Tab`
+- **THEN** every selected line gains one tab of leading indentation
+
+#### Scenario: Shift+Tab removes one tab
+
+- **WHEN** the cursor is on a line that starts with one tab and the user presses
+  `Shift+Tab`
+- **THEN** that leading tab is removed and the editor keeps focus
+
+#### Scenario: Tab still moves focus outside the editor
+
+- **WHEN** the editor does not have focus and the user presses `Tab`
+- **THEN** focus moves to the next focusable control on the page
 
 ### Requirement: The code language is detected automatically
 
