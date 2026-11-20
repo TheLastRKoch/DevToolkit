@@ -19,11 +19,15 @@
 - [x] 3.2 Implement the paste normalization in `raw-text-editor.js`: a document-level capture `paste` listener that scopes the flag to editor targets (cleared with `setTimeout`), plus a clipboard element matcher that deletes `background` and sets `color: '#000000'` on string inserts; verify new tests fail without it and pass with it
 - [x] 3.3 Add page tests covering: a pasted op with `background` loses it, a pasted op with a non-black `color` becomes black, content outside the paste keeps its attributes, and a restore conversion leaves its delta untouched; verify `node --test test/raw-text-editor-page.test.js` passes
 - [x] 3.4 Verify the persisted version stores the cleaned content after a paste; add or extend the page test that reads the stored session version and assert no `background` remains
+- [x] 3.5 Extend the paste matcher in `raw-text-editor.js` to also delete the `font`, `size`, and `header` attributes; verify page tests show pasted font family, font size, and heading level are dropped
+- [x] 3.6 Add page tests asserting a pasted op carrying `font`, `size`, or `header` loses them, the stored version contains none of those formats, and non-paste conversions are unchanged; verify `node --test test/raw-text-editor-page.test.js` passes
+- [x] 3.7 Update `docs/pages.md` to state that pasted font family, font size, and heading level are dropped; verify the sentence matches the implemented behavior
 
 ## 4. Integration verification
 
 - [x] 4.1 Run the full suite with `npm test`; verify all tests pass
 - [x] 4.2 Manually open `/raw-text-editor` in a browser, paste styled content from another page, and confirm in devtools that the pasted text has no background and a black color, while previously typed content is unchanged
+- [x] 4.3 Re-run `npm test`, then manually paste serif, large, and heading content into `/raw-text-editor`; verify it renders as default-size plain text while emphasis and lists survive
 
 ## Workflow follow-up
 
