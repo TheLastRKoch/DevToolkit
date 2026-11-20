@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Lets users control whether the text, markdown, and code editor workspaces are
+Lets users control whether the raw text, markdown, and code editor workspaces are
 inset by a wide side margin, so the full viewport width is available by default
 and the margined reading layout is one click away.
 
@@ -10,15 +10,15 @@ and the margined reading layout is one click away.
 
 ### Requirement: Every editor page offers the margin toggle
 
-The text editor (`/text-editor`), markdown editor (`/markdown-editor`), and code
-editor (`/code-editor`) pages SHALL each list a `Toggle margins` option in the
-shared Options dropdown. Selecting it SHALL flip the workspace margin state,
-take effect immediately, and close the dropdown.
+The raw text editor (`/raw-text-editor`), markdown editor (`/markdown-editor`),
+and code editor (`/code-editor`) pages SHALL each list a `Toggle margins` option
+in the shared Options dropdown. Selecting it SHALL flip the workspace margin
+state, take effect immediately, and close the dropdown.
 
 #### Scenario: The option is listed on each editor page
 
-- **WHEN** the user opens `/text-editor`, `/markdown-editor`, or `/code-editor`
-  and activates the Options dropdown
+- **WHEN** the user opens `/raw-text-editor`, `/markdown-editor`, or
+  `/code-editor` and activates the Options dropdown
 - **THEN** `Toggle margins` is listed among that page's options
 
 #### Scenario: Selecting the option flips the state

@@ -2,70 +2,79 @@
 
 ## Purpose
 
-Defines the text editor endpoint and page introduced by renaming the editor
-route, so the page and its navigation entry consistently use the Text Editor
-name while old links keep working.
+Defines the raw text editor endpoint and page, so the page, its browser
+sessions, and its navigation entry consistently use the Raw Text Editor name,
+legacy editor links keep reaching it, and pasted content keeps the editor's
+plain appearance.
 
 ## Requirements
 
 ### Requirement: The text editor is served at the text editor endpoint
 
-The application SHALL serve an untitled new text editor session at
-`/text-editor`. It SHALL also serve the saved session with the given numeric ID
-at `/text-editor/<id>`. Both routes SHALL respond with the text editor page and
-status `200`. A non-numeric session ID SHALL respond with status `404`.
+The application SHALL serve an untitled new raw text editor session at
+`/raw-text-editor`. It SHALL also serve the saved session with the given numeric
+ID at `/raw-text-editor/<id>`. Both routes SHALL respond with the raw text
+editor page and status `200`. A non-numeric session ID SHALL respond with status
+`404`. The former `/text-editor` and `/text-editor/<id>` routes SHALL NOT be
+served and SHALL respond with status `404`.
 
 #### Scenario: Opening the text editor
 
-- **WHEN** the user requests `/text-editor`
-- **THEN** the application responds with the text editor page with status `200`
-  and the page starts a fresh untitled session
+- **WHEN** the user requests `/raw-text-editor`
+- **THEN** the application responds with the raw text editor page with status
+  `200` and the page starts a fresh untitled session
 
 #### Scenario: Opening a saved text editor session
 
-- **WHEN** the user requests `/text-editor/3`
-- **THEN** the application responds with the text editor page with status `200`
-  and the page loads session `3`
+- **WHEN** the user requests `/raw-text-editor/3`
+- **THEN** the application responds with the raw text editor page with status
+  `200` and the page loads session `3`
 
 #### Scenario: Non-numeric session ID is rejected
 
-- **WHEN** the user requests `/text-editor/abc`
+- **WHEN** the user requests `/raw-text-editor/abc`
+- **THEN** the application responds with status `404`
+
+#### Scenario: Former text editor route is gone
+
+- **WHEN** the user requests `/text-editor` or `/text-editor/3`
 - **THEN** the application responds with status `404`
 
 ### Requirement: The editor route redirects to the text editor endpoint
 
 The application SHALL keep the legacy `/editor` route working as a redirect to
-`/text-editor` and the legacy `/editor/<id>` route working as a redirect to
-`/text-editor/<id>` so existing links and bookmarks still reach the page.
+`/raw-text-editor` and the legacy `/editor/<id>` route working as a redirect to
+`/raw-text-editor/<id>` so existing links and bookmarks still reach the page.
 
 #### Scenario: Legacy route redirects
 
 - **WHEN** the user requests `/editor`
-- **THEN** the application redirects to `/text-editor`
-- **AND** the request ultimately resolves to the text editor page with status
-  `200`
+- **THEN** the application redirects to `/raw-text-editor`
+- **AND** the request ultimately resolves to the raw text editor page with
+  status `200`
 
 #### Scenario: Legacy session route redirects
 
 - **WHEN** the user requests `/editor/3`
-- **THEN** the application redirects to `/text-editor/3`
-- **AND** the request ultimately resolves to the text editor page with status
-  `200`
+- **THEN** the application redirects to `/raw-text-editor/3`
+- **AND** the request ultimately resolves to the raw text editor page with
+  status `200`
 
 ### Requirement: The text editor is named consistently
 
-The text editor page and its navigation entry on the home page SHALL use the
-name `Text Editor`, and SHALL NOT present the page as `Editor`.
+The raw text editor page and its navigation entry on the home page SHALL use the
+name `Raw Text Editor`, and SHALL NOT present the page as `Text Editor` or
+`Editor`.
 
 #### Scenario: Home page entry
 
 - **WHEN** the user opens the home page
-- **THEN** the page list contains a `Text Editor` entry that links to
-  `/text-editor`
+- **THEN** the page list contains a `Raw Text Editor` entry that links to
+  `/raw-text-editor`
 
 #### Scenario: Page title
 
-- **WHEN** the user opens the text editor without a stored title
+- **WHEN** the user opens the raw text editor without a stored title
 - **THEN** `document.title` is `Devtoolkit`
 
 ### Requirement: The text editor provides a rich-text editing surface
@@ -85,3 +94,50 @@ loaded again (if titled).
 
 - **WHEN** the user types into the text editor
 - **THEN** the template and markdown editor pages keep their own content
+
+### Requirement: Pasted content is normalized to the editor's plain appearance
+
+Whenever text is pasted into the raw text editor, the application SHALL remove
+any background color, discard the pasted font family, font size, and heading
+level, and set the pasted text's font color to black, so pasted text renders in
+the editor's default font. Pasting SHALL NOT alter content already in the
+editor, programmatically inserted content, or content restored from a stored
+session.
+
+#### Scenario: Pasting styled content removes its background
+
+- **WHEN** the user pastes content that carries a background color
+- **THEN** the pasted text is inserted without any background color
+
+#### Scenario: Pasting styled content sets the font color to black
+
+- **WHEN** the user pastes content that carries a non-black font color
+- **THEN** the pasted text is inserted with black font color
+
+#### Scenario: Pasted font family is discarded
+
+- **WHEN** the user pastes content that carries a font family
+- **THEN** the pasted text is inserted without a font family
+- **AND** it renders in the editor's default font
+
+#### Scenario: Pasted font size is discarded
+
+- **WHEN** the user pastes content that carries a font size
+- **THEN** the pasted text is inserted at the editor's default size
+
+#### Scenario: Pasted headings are flattened to plain paragraphs
+
+- **WHEN** the user pastes content containing headings
+- **THEN** the pasted text is inserted as plain paragraphs without a heading
+  level
+
+#### Scenario: Existing content is untouched by a paste
+
+- **WHEN** the editor already contains content and the user pastes styled text
+  elsewhere in the document
+- **THEN** only the pasted text is normalized to the editor's plain appearance
+
+#### Scenario: Restoring a stored session keeps its formatting
+
+- **WHEN** a titled session is loaded and its stored content is restored
+- **THEN** the restored content is not rewritten by the paste normalization

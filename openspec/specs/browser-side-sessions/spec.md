@@ -98,9 +98,9 @@ the lifetime of that session.
 
 ### Requirement: Multiple sessions per page type with numeric IDs
 
-Each page type (`text-editor`, `markdown-editor`, `template`) SHALL store any
-number of titled sessions. Every titled session SHALL have a unique numeric ID
-within its page type and SHALL be stored at
+Each page type (`raw-text-editor`, `markdown-editor`, `template`) SHALL store
+any number of titled sessions. Every titled session SHALL have a unique numeric
+ID within its page type and SHALL be stored at
 `devtoolkit:sessions:<kind>:<id>`. Different page types SHALL never share state;
 IDs MAY repeat across page types.
 
@@ -112,9 +112,9 @@ IDs MAY repeat across page types.
 
 #### Scenario: IDs are scoped to the page kind
 
-- **WHEN** a template session and a text editor session each receive ID `1`
+- **WHEN** a template session and a raw text editor session each receive ID `1`
 - **THEN** both sessions exist independently at `/template/1` and
-  `/text-editor/1`
+  `/raw-text-editor/1`
 
 #### Scenario: Opening a page with no stored session
 
@@ -217,7 +217,7 @@ the oldest entry SHALL be dropped (FIFO).
 
 #### Scenario: Version contents by page type
 
-- **GIVEN** a text-editor or markdown-editor session
+- **GIVEN** a raw-text-editor or markdown-editor session
 - **THEN** each version contains `updatedDate` and `content`
 - **GIVEN** a template session
 - **THEN** each version contains `updatedDate`, `content`, and `variables`

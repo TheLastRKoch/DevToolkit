@@ -70,7 +70,7 @@ test('numeric IDs are allocated per kind', () => {
     const storage = memoryStorage();
     const firstTemplate = openStore('template', storage);
     const secondTemplate = openStore('template', storage);
-    const firstText = openStore('text-editor', storage);
+    const firstText = openStore('raw-text-editor', storage);
 
     firstTemplate.save({ title: 'One' });
     secondTemplate.save({ title: 'Two' });
@@ -105,10 +105,10 @@ test('a legacy single session migrates to ID 1', () => {
 
 test('a corrupt legacy document is left untouched', () => {
     const storage = memoryStorage();
-    storage.setItem(sessionKey('text-editor'), 'not-json');
+    storage.setItem(sessionKey('raw-text-editor'), 'not-json');
 
-    assert.equal(migrateLegacySession('text-editor', storage), false);
-    assert.equal(storage.getItem(sessionKey('text-editor')), 'not-json');
+    assert.equal(migrateLegacySession('raw-text-editor', storage), false);
+    assert.equal(storage.getItem(sessionKey('raw-text-editor')), 'not-json');
     assert.deepEqual(listAll(storage), []);
 });
 
@@ -228,11 +228,11 @@ test('versions are created on demand, deduplicated, and truncated at three', () 
 
 test('an untitled session never snapshots and starts again untitled', () => {
     const storage = recordingStorage();
-    const store = openStore('text-editor', storage);
+    const store = openStore('raw-text-editor', storage);
     store.save({ content: '<p>draft</p>' });
     assert.equal(store.snapshot(), false, 'untitled work is not versioned');
-    assert.equal(storage.getItem(sessionKey('text-editor')), null);
-    assert.deepEqual(store.get(), { id: null, title: '', kind: 'text-editor', versions: [] });
+    assert.equal(storage.getItem(sessionKey('raw-text-editor')), null);
+    assert.deepEqual(store.get(), { id: null, title: '', kind: 'raw-text-editor', versions: [] });
 });
 
 test('template versions carry variables and compare them for deduplication', () => {
@@ -270,7 +270,7 @@ test('a titled session is read back by a store created later', () => {
 test('each page type keeps its own session', () => {
     const storage = recordingStorage();
     const template = openStore('template', storage);
-    const textEditor = openStore('text-editor', storage);
+    const textEditor = openStore('raw-text-editor', storage);
     const markdown = openStore('markdown-editor', storage);
 
     template.save({ title: 'Template one', content: 'template body', variables: {} });
@@ -286,16 +286,16 @@ test('each page type keeps its own session', () => {
 
 test('remove drops the session from storage and from the view', () => {
     const storage = recordingStorage();
-    const store = openStore('text-editor', storage);
+    const store = openStore('raw-text-editor', storage);
     store.save({ title: 'Keep me', content: 'body' });
 
     const id = store.getId();
     assert.equal(store.remove(), true);
-    assert.equal(storage.getItem(sessionKey('text-editor', id)), null);
+    assert.equal(storage.getItem(sessionKey('raw-text-editor', id)), null);
     assert.equal(store.remove(), false, 'removing a missing session reports nothing removed');
-    assert.deepEqual(store.get(), { id: null, title: '', kind: 'text-editor', versions: [] });
+    assert.deepEqual(store.get(), { id: null, title: '', kind: 'raw-text-editor', versions: [] });
 
-    const next = openStore('text-editor', storage);
+    const next = openStore('raw-text-editor', storage);
     next.save({ title: 'After delete' });
     assert.equal(next.getId(), id + 1, 'deleted IDs are not reused');
 });
@@ -316,7 +316,7 @@ test('listAll reads every titled stored session with its latest date', () => {
     markdown.save({ title: 'Notes', content: '# Notes' });
     markdown.snapshot();
 
-    openStore('text-editor', storage).save({ content: '<p>draft</p>' });
+    openStore('raw-text-editor', storage).save({ content: '<p>draft</p>' });
 
     assert.deepEqual(listAll(storage), [
         { id: 1, kind: 'markdown-editor', title: 'Notes', latestDate: '2026-10-16T08:02:00.000Z' },
