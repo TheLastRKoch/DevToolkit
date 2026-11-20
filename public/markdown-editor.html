@@ -14,7 +14,6 @@
 
         #editorWorkspace {
             min-height: 0;
-            height: calc(100vh - 176px);
         }
 
         @media (min-width: 768px) {
@@ -30,14 +29,16 @@
             min-height: 0;
             flex: 1 1 50%;
             width: 100%;
-            height: 50%;
         }
 
         @media (min-width: 768px) {
             #rawPane,
             #previewPane {
                 width: 50%;
-                height: 100%;
+            }
+
+            #rawPane {
+                align-self: flex-start;
             }
         }
 
@@ -45,10 +46,11 @@
             resize: none;
             tab-size: 2;
             font-family: monospace;
+            height: calc(100vh - 260px);
+            min-height: 240px;
         }
 
         #mdPreview {
-            overflow-y: auto;
             word-wrap: break-word;
         }
 
@@ -120,7 +122,7 @@
         <div id="pageHeader"></div>
 
         <!-- Editor workspace -->
-        <div id="editorWorkspace" class="d-flex flex-column flex-md-row flex-grow-1 border rounded shadow-sm overflow-hidden bg-white mt-3 mb-3">
+        <div id="editorWorkspace" class="d-flex flex-column flex-md-row flex-grow-1 mt-3 mb-3">
 
             <!-- Left Pane: Raw Markdown Input -->
             <section id="rawPane" class="d-flex flex-column flex-grow-1" aria-label="Raw Markdown Editor">
@@ -135,7 +137,7 @@
                 <!-- Textarea -->
                 <textarea
                     id="mdInput"
-                    class="form-control border-0 rounded-0 flex-grow-1 p-3 overflow-auto"
+                    class="form-control rounded-0 flex-grow-1 p-3 overflow-auto"
                     placeholder="Type or paste markdown here..."
                     spellcheck="false"
                     aria-label="Markdown text editor"
@@ -166,7 +168,7 @@
                 <!-- Preview content -->
                 <div
                     id="mdPreview"
-                    class="flex-grow-1 p-3 px-md-4 overflow-auto bg-white text-dark"
+                    class="p-3 px-md-4 text-dark"
                     aria-live="polite"
                 ></div>
 
