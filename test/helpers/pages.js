@@ -216,7 +216,22 @@ function renderDeltaHtml(delta) {
         if (op.attributes && op.attributes.background) {
             styles.push(`background-color: ${op.attributes.background}`);
         }
-        return styles.length > 0 ? `<span style="${styles.join('; ')}">${op.insert}</span>` : op.insert;
+        const data = [];
+        if (op.attributes && op.attributes.font) {
+            data.push(`data-font="${op.attributes.font}"`);
+        }
+        if (op.attributes && op.attributes.size) {
+            data.push(`data-size="${op.attributes.size}"`);
+        }
+        if (op.attributes && op.attributes.header) {
+            data.push(`data-header="${op.attributes.header}"`);
+        }
+        const marker = styles.length > 0 || data.length > 0;
+        if (!marker) {
+            return op.insert;
+        }
+        const attributes = styles.length > 0 ? [`style="${styles.join('; ')}"`] : [];
+        return `<span ${attributes.concat(data).join(' ')}>${op.insert}</span>`;
     }).join('');
 }
 

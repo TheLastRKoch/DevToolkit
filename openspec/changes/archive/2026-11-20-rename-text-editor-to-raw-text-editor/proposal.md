@@ -4,9 +4,9 @@
 
 The `/text-editor` page is a rich-text (Quill) editor, yet its name suggests a
 plain-text tool, which confuses users choosing between it and the markdown/code
-editors. Separately, pasted content keeps its original background colors and
-font colors, so sessions end up with inconsistent, unreadable styling that does
-not match the editor's own appearance.
+editors. Separately, pasted content keeps its original background colors, font
+colors, fonts, sizes, and heading levels, so sessions end up with inconsistent
+styling that does not match the editor's own appearance.
 
 ## What Changes
 
@@ -19,9 +19,10 @@ not match the editor's own appearance.
   `raw-text-editor`, so sessions are stored, listed, and linked under the new
   name. Existing sessions stored under the old kind are not migrated.
 - Present the page and its navigation entry as `Raw Text Editor`.
-- On every paste into the editing surface, remove any background color and set
-  the pasted text's font color to black, so pasted content matches the editor's
-  plain appearance.
+- On every paste into the editing surface, remove any background color, discard
+  the pasted font family, font size, and heading level, and set the pasted
+  text's font color to black, so pasted content uses the editor's default font
+  and plain appearance.
 
 ## Capabilities
 

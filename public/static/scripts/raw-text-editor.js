@@ -43,10 +43,11 @@
     });
 
     /**
-     * Pasted content is normalized to the editor's plain appearance: backgrounds
-     * are dropped and the text is explicitly black. Quill converts the pasted
-     * clipboard synchronously, so the capture-phase paste listener marks the
-     * conversion before Quill's own paste handler runs.
+     * Pasted content is normalized to the editor's plain appearance: backgrounds,
+     * font families, font sizes, and heading levels are dropped, and the text is
+     * explicitly black. Quill converts the pasted clipboard synchronously, so the
+     * capture-phase paste listener marks the conversion before Quill's own paste
+     * handler runs.
      */
     function normalizePastedDelta(delta) {
         delta.ops.forEach((op) => {
@@ -54,6 +55,9 @@
                 return;
             }
             delete op.attributes.background;
+            delete op.attributes.font;
+            delete op.attributes.size;
+            delete op.attributes.header;
             if (typeof op.insert === 'string') {
                 op.attributes.color = '#000000';
             }

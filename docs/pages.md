@@ -120,8 +120,9 @@ margins off; the setting is not stored.
 from the legacy `/editor` routes, which redirect permanently. Its options are
 **Toggle margins** and **Clear editor**; the stored content is imported through
 Quill's clipboard conversion, which normalizes it as untrusted markup. Pasting
-removes any background color from the pasted content and sets its font color to
-black, so pasted text matches the editor's plain appearance.
+removes any background color, discards the pasted font family and font size,
+flattens headings to plain paragraphs, and sets the text color to black, so
+pasted text renders in the editor's default font.
 
 
 ## Markdown editor page

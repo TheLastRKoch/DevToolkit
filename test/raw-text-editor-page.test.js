@@ -198,3 +198,50 @@ test('a pasted session version stores the cleaned content', () => {
     assert.ok(!version.content.includes('background'), 'the stored content has no background');
     assert.ok(version.content.includes('color: #000000'), 'the stored content is black');
 });
+
+test('pasted font family is discarded', () => {
+    const page = openRawTextEditorPage(sessionsModule.memoryStorage());
+    const pasted = page.paste({ ops: [{ insert: 'serif text', attributes: { font: 'serif' } }] });
+
+    assert.equal(pasted.ops[0].attributes.font, undefined, 'the pasted font family is removed');
+});
+
+test('pasted font size is discarded', () => {
+    const page = openRawTextEditorPage(sessionsModule.memoryStorage());
+    const pasted = page.paste({ ops: [{ insert: 'large text', attributes: { size: 'large' } }] });
+
+    assert.equal(pasted.ops[0].attributes.size, undefined, 'the pasted font size is removed');
+});
+
+test('pasted headings are flattened to plain paragraphs', () => {
+    const page = openRawTextEditorPage(sessionsModule.memoryStorage());
+    const pasted = page.paste({
+        ops: [
+            { insert: 'Title' },
+            { insert: '\n', attributes: { header: 1 } },
+        ],
+    });
+
+    assert.equal(pasted.ops[1].attributes.header, undefined, 'the pasted heading level is removed');
+});
+
+test('a pasted session version keeps no font, size, or heading formats', () => {
+    const storage = sessionsModule.memoryStorage();
+    const page = openRawTextEditorPage(storage);
+    page.typeTitle('Notes');
+
+    page.paste({
+        ops: [
+            { insert: 'Styled', attributes: { font: 'serif', size: 'large', color: '#ff0000' } },
+            { insert: '\n', attributes: { header: 2 } },
+        ],
+    });
+    page.hide();
+
+    const version = latestVersion(page);
+    assert.ok(version, 'the pasted content is versioned');
+    for (const marker of ['data-font=', 'data-size=', 'data-header=']) {
+        assert.ok(!version.content.includes(marker), `the stored content has no ${marker}`);
+    }
+    assert.ok(version.content.includes('color: #000000'), 'the stored text is black');
+});

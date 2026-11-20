@@ -17,10 +17,11 @@ See `proposal.md` for motivation and `specs/` for the behavioral contract.
 - The editor is Quill 2.0.2 loaded from a CDN. Its `Clipboard` module binds a
   `paste` listener on `quill.root`, synchronously converts pasted HTML, applies
   the built-in matchers from `CLIPBOARD_CONFIG` (including `matchStyles`, which
-  turns inline `background-color`/`color` into `background`/`color`
-  attributes), then applies custom matchers registered with `addMatcher`, and
-  finally calls `updateContents(delta, 'user')`. Quill exposes no paste-specific
-  clipboard hook.
+  turns inline `background-color`, `color`, `font-family`, and `font-size` into
+  `background`, `color`, `font`, and `size` attributes, and heading tags into a
+  `header` attribute), then applies custom matchers registered with
+  `addMatcher`, and finally calls `updateContents(delta, 'user')`. Quill
+  exposes no paste-specific clipboard hook.
 - Tests run on Node's test runner against a mock DOM (`test/helpers/mock-dom.js`)
   and a stub Quill (`test/helpers/pages.js`). The stub implements `convert`,
   `setContents`, `on`, `emit`, and a plain `root` object only.
@@ -33,6 +34,8 @@ See `proposal.md` for motivation and `specs/` for the behavioral contract.
   `raw-text-editor` / `Raw Text Editor`.
 - Paste cleanup that is scoped to paste events and leaves typed, restored, and
   programmatically inserted content untouched.
+- Pasted text renders in the page's default font: external families, sizes, and
+  heading levels are dropped while emphasis and list structure are kept.
 - Keep the existing page behavior (sessions, versions, margins, clear, header)
   intact.
 
@@ -72,11 +75,14 @@ Register once at startup:
   the conversion it triggers happens synchronously while the flag is set;
 - `quill.clipboard.addMatcher(1 /* Node.ELEMENT_NODE */, (node, delta) => ...)`
   that, only while `pasting` is set, walks `delta.ops`, deletes
-  `attributes.background`, and assigns `attributes.color = '#000000'` for
-  string inserts (embed inserts keep their attributes minus `background`).
+  `attributes.background`, `attributes.font`, `attributes.size`, and
+  `attributes.header`, and assigns `attributes.color = '#000000'` for string
+  inserts (embed inserts keep their attributes minus the removed formats).
 
 Because custom matchers run after `matchStyles`/`matchAttributor`, this removes
-both inline `background-color` and Quill `ql-bg-*` class backgrounds, and the
+both inline `background-color` and Quill `ql-bg-*` class backgrounds, as well as
+the `font`/`size` formats that inline font styles and `ql-font-*`/`ql-size-*`
+classes produce, and it flattens pasted headings into plain paragraphs. The
 cleaned delta is what `updateContents` applies — so Quill's retained cursor
 formats after the paste are clean too.
 
@@ -109,7 +115,10 @@ order.
   (2.0.2) and keep the matcher logic tolerant: it deletes `background` and sets
   `color` regardless of whether the attribute exists.
 - **Pasting into a code block** short-circuits Quill's HTML conversion to plain
-  text, so no matcher runs; the result carries no background or color anyway.
+  text, so no matcher runs; the result carries no background, font, or heading
+  formats anyway. → No action needed.
+- **Font families and sizes outside Quill's whitelist** are dropped by Quill's
+  own matchers before the custom matcher runs, so they never reach the editor.
   → No action needed.
 - **Pasted images/files** bypass the text pipeline and are not normalized.
   → Out of scope, documented in the specs.

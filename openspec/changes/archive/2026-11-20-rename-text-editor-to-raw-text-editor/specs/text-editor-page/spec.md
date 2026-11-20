@@ -74,11 +74,12 @@ name `Raw Text Editor`, and SHALL NOT present the page as `Text Editor` or
 
 ### Requirement: Pasted content is normalized to the editor's plain appearance
 
-Whenever text is pasted into the raw text editor's editing surface, the
-application SHALL remove any background color from the pasted content and SHALL
-set the pasted text's font color to black. Pasting SHALL NOT alter content that
-was already in the editor before the paste, programmatically inserted content,
-or content restored from a stored session.
+Whenever text is pasted into the raw text editor, the application SHALL remove
+any background color, discard the pasted font family, font size, and heading
+level, and set the pasted text's font color to black, so pasted text renders in
+the editor's default font. Pasting SHALL NOT alter content already in the
+editor, programmatically inserted content, or content restored from a stored
+session.
 
 #### Scenario: Pasting styled content removes its background
 
@@ -90,12 +91,28 @@ or content restored from a stored session.
 - **WHEN** the user pastes content that carries a non-black font color
 - **THEN** the pasted text is inserted with black font color
 
+#### Scenario: Pasted font family is discarded
+
+- **WHEN** the user pastes content that carries a font family
+- **THEN** the pasted text is inserted without a font family
+- **AND** it renders in the editor's default font
+
+#### Scenario: Pasted font size is discarded
+
+- **WHEN** the user pastes content that carries a font size
+- **THEN** the pasted text is inserted at the editor's default size
+
+#### Scenario: Pasted headings are flattened to plain paragraphs
+
+- **WHEN** the user pastes content containing headings
+- **THEN** the pasted text is inserted as plain paragraphs without a heading
+  level
+
 #### Scenario: Existing content is untouched by a paste
 
 - **WHEN** the editor already contains content and the user pastes styled text
   elsewhere in the document
-- **THEN** only the pasted text has its background removed and its font color
-  set to black
+- **THEN** only the pasted text is normalized to the editor's plain appearance
 
 #### Scenario: Restoring a stored session keeps its formatting
 
