@@ -14,6 +14,7 @@ const path = require('node:path');
 const sessionsModule = require('../../public/static/scripts/browser-session.js');
 const pageHeaderModule = require('../../public/static/scripts/page-header.js');
 const codeLanguageModule = require('../../public/static/scripts/code-language.js');
+const editorMarginsModule = require('../../public/static/scripts/editor-margins.js');
 const { createDom, createWindow, runScript, withDocument } = require('./mock-dom.js');
 
 const root = path.join(__dirname, '../..');
@@ -129,6 +130,7 @@ function buildHarness({ ids, script, globals, storage, kind, clock, sessionId })
         globals: Object.assign({}, globals, {
             DevToolkitSessions: sessionGlobals({ storage, clock }),
             DevToolkitPageHeader: withDocument(pageHeaderModule, dom.document),
+            DevToolkitEditorMargins: editorMarginsModule,
         }),
     });
     return pageHarness({ dom, window, kind, storage });
@@ -148,7 +150,7 @@ function openTemplatePage(storage, { clock, sessionId } = {}) {
 
 function openMarkdownPage(storage, { clock, sessionId } = {}) {
     return buildHarness({
-        ids: ['mdInput', 'mdPreview', 'charCount', 'btnExpandEditor', 'btnExpandPreview', 'rawPane', 'previewPane', 'paneDivider', 'paneDividerMobile', 'currentYear'],
+        ids: ['mdInput', 'mdPreview', 'charCount', 'btnExpandEditor', 'btnExpandPreview', 'rawPane', 'previewPane', 'paneDivider', 'paneDividerMobile', 'editorWorkspace', 'currentYear'],
         script: readScript('markdown-editor.js'),
         storage,
         clock,
@@ -201,7 +203,7 @@ function openTextEditorPage(storage, { clock, initialHtml, title, sessionId } = 
     }
     const quillStub = createQuillStub();
     const page = buildHarness({
-        ids: ['txtOutput', 'currentYear'],
+        ids: ['txtOutput', 'editorWorkspace', 'currentYear'],
         script: readScript('text-editor.js'),
         storage,
         clock,
@@ -252,7 +254,7 @@ function openCodeEditorPage(storage, { clock, title, content, sessionId, without
     const stub = createCodeSurfaceStub();
     const page = buildHarness({
         ids: [
-            'codeEditorMount', 'languageLabel', 'charCount', 'languageDialog',
+            'codeEditorMount', 'codeEditorWorkspace', 'languageLabel', 'charCount', 'languageDialog',
             'languageSelect', 'languageApply', 'languageCancel',
         ],
         script: readScript('code-editor.js'),

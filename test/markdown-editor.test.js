@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const sessionsModule = require('../public/static/scripts/browser-session.js');
 const pageHeaderModule = require('../public/static/scripts/page-header.js');
+const editorMarginsModule = require('../public/static/scripts/editor-margins.js');
 const { createDom, createWindow, runScript, withDocument } = require('./helpers/mock-dom.js');
 
 const htmlPath = path.join(__dirname, '../public/markdown-editor.html');
@@ -52,6 +53,7 @@ test('Interactive simulation of pane state toggling', () => {
         'previewPane',
         'paneDivider',
         'paneDividerMobile',
+        'editorWorkspace',
         'currentYear',
     ]);
     const rawPane = dom.document.getElementById('rawPane');
@@ -75,10 +77,24 @@ test('Interactive simulation of pane state toggling', () => {
             marked,
             DevToolkitSessions: Object.assign({}, sessionsModule, { browserStorage: () => storage }),
             DevToolkitPageHeader: withDocument(pageHeaderModule, dom.document),
+            DevToolkitEditorMargins: editorMarginsModule,
         },
     });
 
-    // Initial state: split view
+    // Initial state: split view, margins disabled
+    const workspaceEl = dom.document.getElementById('editorWorkspace');
+    assert.equal(workspaceEl.classList.contains('editor-margins-enabled'), false, 'margins must be disabled on load');
+
+    // The first dropdown option toggles the margins on and off
+    const optionsToggle = dom.document.getElementById('pageOptionsToggle');
+    const optionsMenu = dom.document.getElementById('pageOptionsMenu');
+    optionsToggle.dispatch('click', { preventDefault() {} });
+    assert.equal(optionsMenu.children[0].children[0].textContent, 'Toggle margins');
+    optionsMenu.children[0].children[0].dispatch('click', {});
+    assert.equal(workspaceEl.classList.contains('editor-margins-enabled'), true, 'selecting Toggle margins enables margins');
+    optionsToggle.dispatch('click', { preventDefault() {} });
+    optionsMenu.children[0].children[0].dispatch('click', {});
+    assert.equal(workspaceEl.classList.contains('editor-margins-enabled'), false, 'selecting Toggle margins again disables margins');
     assert.equal(previewPane.classList.contains('d-none'), false, 'previewPane should be visible initially');
     assert.equal(rawPane.classList.contains('d-none'), false, 'rawPane should be visible initially');
     assert.equal(paneDivider.classList.contains('d-none'), false, 'paneDivider should not have d-none added');
@@ -114,8 +130,11 @@ test('Layout styling: responsive orientation, 200px margins, and 50/50 split siz
     // Verify #editorWorkspace has flex-column on mobile and flex-md-row on desktop
     assert.match(html, /id="editorWorkspace"[^>]*class="[^"]*flex-column\s+flex-md-row/, 'editorWorkspace must have flex-column flex-md-row');
 
-    // Verify 200px margins on #editorWorkspace inside @media (min-width: 768px)
-    assert.match(html, /@media\s*\(\s*min-width:\s*768px\s*\)\s*\{[\s\S]*?#editorWorkspace\s*\{[\s\S]*?margin-left:\s*200px[\s\S]*?margin-right:\s*200px/, 'editorWorkspace must have 200px left and right margins inside @media (min-width: 768px)');
+    // Verify the 200px margins only apply while margins are enabled
+    assert.match(html, /@media\s*\(\s*min-width:\s*768px\s*\)\s*\{[\s\S]*?#editorWorkspace\.editor-margins-enabled\s*\{[\s\S]*?margin-left:\s*200px[\s\S]*?margin-right:\s*200px/, 'editorWorkspace must have 200px left and right margins only for the editor-margins-enabled state inside @media (min-width: 768px)');
+
+    // Verify the shared margin module loads before the page script
+    assert.ok(html.indexOf('/static/scripts/editor-margins.js') < html.indexOf('/static/scripts/markdown-editor.js'), 'editor-margins.js must load before markdown-editor.js');
 
     // Verify mobile default 50% height and 100% width on panes
     assert.match(html, /#rawPane,\s*#previewPane\s*\{[\s\S]*?width:\s*100%;[\s\S]*?height:\s*50%;/, 'panes must have width: 100% and height: 50% by default on mobile');

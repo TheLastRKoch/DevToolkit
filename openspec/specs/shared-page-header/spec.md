@@ -73,8 +73,9 @@ the dropdown.
 ### Requirement: Each adopting page declares its own options
 
 The template page SHALL declare Clear variables and Clear all as its dropdown
-options. The text editor page SHALL declare Clear editor. The markdown editor
-page SHALL declare Clear editor. The list compare page SHALL declare Clear all.
+options. The text editor page SHALL declare Toggle margins and Clear editor. The
+markdown editor page SHALL declare Toggle margins and Clear editor. The list
+compare page SHALL declare Clear all.
 A page SHALL offer no option that it does not implement.
 
 #### Scenario: Template page options
@@ -85,14 +86,14 @@ A page SHALL offer no option that it does not implement.
 #### Scenario: Text editor page options
 
 - **WHEN** the user opens the text editor page and activates the Options dropdown
-- **THEN** Clear editor is listed
+- **THEN** Toggle margins and Clear editor are listed
 - **AND** no variable-related option is listed
 
 #### Scenario: Markdown editor page options
 
 - **WHEN** the user opens the markdown editor page and activates the Options
   dropdown
-- **THEN** Clear editor is listed
+- **THEN** Toggle margins and Clear editor are listed
 
 #### Scenario: List compare page options
 

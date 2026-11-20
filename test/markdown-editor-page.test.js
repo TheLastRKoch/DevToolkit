@@ -14,7 +14,7 @@ function latestVersion(page) {
 test('the markdown page declares the shared header with its own options', () => {
     const page = openMarkdownPage(sessionsModule.memoryStorage());
 
-    assert.deepEqual(page.optionItems().map((item) => item.textContent), ['Clear editor']);
+    assert.deepEqual(page.optionItems().map((item) => item.textContent), ['Toggle margins', 'Clear editor']);
     assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
     assert.equal(page.document.title, 'Devtoolkit');
 });
@@ -69,7 +69,7 @@ test('Clear editor empties the content and keeps the title', () => {
     page.typeTitle('Keep me');
 
     page.openOptions();
-    page.selectOption(0);
+    page.selectOption(1);
 
     assert.equal(page.element('mdInput').value, '');
     assert.equal(page.element('mdPreview').innerHTML, '<p></p>');
