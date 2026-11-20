@@ -7,6 +7,7 @@ const sessionsModule = require('../public/static/scripts/browser-session.js');
 const pageHeaderModule = require('../public/static/scripts/page-header.js');
 const editorMarginsModule = require('../public/static/scripts/editor-margins.js');
 const { createDom, createWindow, runScript, withDocument } = require('./helpers/mock-dom.js');
+const { openMarkdownPage } = require('./helpers/pages.js');
 
 const htmlPath = path.join(__dirname, '../public/markdown-editor.html');
 const jsPath = path.join(__dirname, '../public/static/scripts/markdown-editor.js');
@@ -124,7 +125,23 @@ test('Interactive simulation of pane state toggling', () => {
     assert.equal(paneDivider.classList.contains('d-none'), false, 'paneDivider must not have d-none after restore');
 });
 
-test('Layout styling: responsive orientation, 200px margins, and 50/50 split sizing', () => {
+test('Typing updates the preview and Clear editor empties it without scroll sync', () => {
+    const page = openMarkdownPage(sessionsModule.memoryStorage());
+
+    page.type('mdInput', '# Notes');
+    assert.equal(page.element('mdPreview').innerHTML, '<p># Notes</p>', 'typing must update the rendered preview');
+
+    page.openOptions();
+    page.selectOption(1);
+    assert.equal(page.element('mdInput').value, '', 'Clear editor must empty the raw editor');
+    assert.equal(page.element('mdPreview').innerHTML, '<p></p>', 'Clear editor must empty the preview');
+
+    const script = fs.readFileSync(jsPath, 'utf8');
+    assert.ok(!script.includes('syncScroll'), 'the preview must not synchronize scroll position');
+    assert.ok(!/addEventListener\('scroll'/.test(script), 'the script must not listen for pane scroll events');
+});
+
+test('Layout styling: responsive orientation, 200px margins, and inline preview', () => {
     const html = fs.readFileSync(htmlPath, 'utf8');
 
     // Verify #editorWorkspace has flex-column on mobile and flex-md-row on desktop
@@ -136,12 +153,34 @@ test('Layout styling: responsive orientation, 200px margins, and 50/50 split siz
     // Verify the shared margin module loads before the page script
     assert.ok(html.indexOf('/static/scripts/editor-margins.js') < html.indexOf('/static/scripts/markdown-editor.js'), 'editor-margins.js must load before markdown-editor.js');
 
-    // Verify mobile default 50% height and 100% width on panes
-    assert.match(html, /#rawPane,\s*#previewPane\s*\{[\s\S]*?width:\s*100%;[\s\S]*?height:\s*50%;/, 'panes must have width: 100% and height: 50% by default on mobile');
-    assert.match(html, /#rawPane,\s*#previewPane\s*\{[\s\S]*?flex:\s*1\s+1\s+50%/, 'panes must have flex: 1 1 50%');
+    // Verify the workspace no longer renders as a bordered, clipped card
+    assert.doesNotMatch(html, /id="editorWorkspace"[^>]*class="[^"]*\b(?:border|rounded|shadow-sm|overflow-hidden|bg-white)\b/, 'editorWorkspace must not render a bordered card panel');
 
-    // Verify desktop/tablet 50% width and 100% height inside @media (min-width: 768px)
-    assert.match(html, /@media\s*\(\s*min-width:\s*768px\s*\)\s*\{[\s\S]*?#rawPane,\s*#previewPane\s*\{[\s\S]*?width:\s*50%;[\s\S]*?height:\s*100%;/, 'panes must have width: 50% and height: 100% inside @media (min-width: 768px)');
+    // Verify the workspace is not pinned to the viewport height
+    const workspaceRule = html.match(/#editorWorkspace\s*\{([\s\S]*?)\}/);
+    assert.ok(workspaceRule, 'editorWorkspace CSS rule must exist');
+    assert.doesNotMatch(workspaceRule[1], /[^-]height\s*:/, 'editorWorkspace must not have a fixed height');
+
+    // Verify the preview flows in the page instead of owning a scroll region
+    const previewRule = html.match(/#mdPreview\s*\{([\s\S]*?)\}/);
+    assert.ok(previewRule, 'mdPreview CSS rule must exist');
+    assert.doesNotMatch(previewRule[1], /overflow/, 'mdPreview must not scroll independently');
+    assert.doesNotMatch(html, /id="mdPreview"[^>]*class="[^"]*\boverflow-auto\b/, 'mdPreview must not use an overflow-auto container');
+    assert.doesNotMatch(html, /id="mdPreview"[^>]*class="[^"]*\bbg-white\b/, 'mdPreview must not paint a card background');
+
+    // Verify the 50/50 split stays at 768px and the panes keep their base flex sizing
+    assert.match(html, /#rawPane,\s*#previewPane\s*\{[\s\S]*?flex:\s*1\s+1\s+50%/, 'panes must have flex: 1 1 50%');
+    assert.match(html, /#rawPane,\s*#previewPane\s*\{[\s\S]*?width:\s*100%;/, 'panes must have width: 100% below 768px');
+    assert.match(html, /@media\s*\(\s*min-width:\s*768px\s*\)\s*\{[\s\S]*?#rawPane,\s*#previewPane\s*\{[\s\S]*?width:\s*50%;/, 'panes must have width: 50% inside @media (min-width: 768px)');
+
+    // Verify the raw editor keeps a bounded, usable height
+    const mdInputRule = html.match(/#mdInput\s*\{([\s\S]*?)\}/);
+    assert.ok(mdInputRule, 'mdInput CSS rule must exist');
+    assert.match(mdInputRule[1], /height:\s*calc\(100vh/, 'mdInput must keep a viewport-derived height');
+    assert.match(mdInputRule[1], /min-height:\s*\d+px/, 'mdInput must keep a minimum usable height');
+
+    // Verify the panes stack with the raw editor first below 768px
+    assert.ok(html.indexOf('id="rawPane"') < html.indexOf('id="previewPane"'), 'the raw editor must come before the preview when stacked');
 
     // Verify #editorWorkspace includes top margin separating it from the page header
     assert.match(html, /id="editorWorkspace"[^>]*class="[^"]*(?:mt-3|my-3)[^"]*"/, 'editorWorkspace must have mt-3 or my-3 for vertical margin separation');

@@ -110,6 +110,20 @@ test('an untitled markdown session with changes is confirmed, a titled one is no
     assert.equal(page.beforeUnloadProbe(), false, 'a titled session is auto-versioned instead');
 });
 
+test('the rendered preview is not enclosed in a card panel', () => {
+    assert.ok(markdownHtml.includes('id="mdPreview"'), 'the page must keep the preview element');
+    assert.doesNotMatch(
+        markdownHtml,
+        /id="editorWorkspace"[^>]*class="[^"]*\b(?:border|rounded|shadow-sm|overflow-hidden|bg-white)\b/,
+        'the workspace must not render a bordered card'
+    );
+    assert.doesNotMatch(
+        markdownHtml,
+        /id="mdPreview"[^>]*class="[^"]*\b(?:overflow-auto|bg-white)\b/,
+        'the preview must not own a scroll region or card background'
+    );
+});
+
 test('the markdown page shares the header markup instead of duplicating it', () => {
     assert.ok(markdownHtml.includes('id="pageHeader"'), 'the page mounts the shared header');
     assert.ok(markdownHtml.includes('browser-session.js'), 'the page loads the session store');

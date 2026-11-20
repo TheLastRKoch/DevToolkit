@@ -125,8 +125,13 @@ Quill's clipboard conversion, which normalizes it as untrusted markup.
 ## Markdown editor page
 
 `/markdown-editor` starts a new session; `/markdown-editor/<id>` reopens a saved
-one. It keeps the raw markdown pane and the rendered preview. Its options are
-**Toggle margins** and **Clear editor**.
+one. It keeps the raw markdown pane and renders the preview directly in the
+page: the rendered document flows with the page content, with no boxed panel or
+separate scrollbar, and the page itself scrolls long documents. The raw editor
+and the rendered preview sit side by side at 768 px and wider and stack with the
+raw editor first below that; either pane expands to the full page width and
+restores to the split view. Its options are **Toggle margins** and
+**Clear editor**.
 
 ## Code editor page
 
