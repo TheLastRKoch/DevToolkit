@@ -3,8 +3,8 @@
 All DevToolkit editing pages are session based. Each page kind can keep many
 saved sessions: `/<kind>` starts a new untitled session and `/<kind>/<id>` opens
 the saved session with that numeric ID. The legacy `/editor` route redirects
-permanently to `/text-editor`, and `/editor/<id>` redirects to
-`/text-editor/<id>`.
+permanently to `/raw-text-editor`, and `/editor/<id>` redirects to
+`/raw-text-editor/<id>`.
 
 ## Shared page header
 
@@ -113,13 +113,15 @@ The three editor pages share a **Toggle margins** option. It insets the editor
 workspace by 200px on each side above 768px, and every page load starts with the
 margins off; the setting is not stored.
 
-## Text editor page
+## Raw text editor page
 
-`/text-editor` presents a Quill rich-text editor and starts a new session;
-`/text-editor/<id>` reopens a saved one. It is reached from the home page and
+`/raw-text-editor` presents a Quill rich-text editor and starts a new session;
+`/raw-text-editor/<id>` reopens a saved one. It is reached from the home page and
 from the legacy `/editor` routes, which redirect permanently. Its options are
 **Toggle margins** and **Clear editor**; the stored content is imported through
-Quill's clipboard conversion, which normalizes it as untrusted markup.
+Quill's clipboard conversion, which normalizes it as untrusted markup. Pasting
+removes any background color from the pasted content and sets its font color to
+black, so pasted text matches the editor's plain appearance.
 
 
 ## Markdown editor page
@@ -173,7 +175,7 @@ the rest of the page stays usable.
 restores that session's content — the editor text, the raw markdown, or the
 template text and variables. Multiple sessions of one kind appear as separate
 cards. The filter buttons offer All plus one button per session kind
-(`text-editor`, `markdown-editor`, `code-editor`, `template`, `list-compare`),
+(`raw-text-editor`, `markdown-editor`, `code-editor`, `template`, `list-compare`),
 the search box filters by title,
 the × button deletes only that session's `devtoolkit:sessions:<kind>:<id>` key,
 and an empty state is shown when nothing is saved. The New dropdown links to the

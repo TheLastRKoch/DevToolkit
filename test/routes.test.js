@@ -30,30 +30,37 @@ test('GET / returns 200', async () => {
     assert.ok(body.includes('Devtoolkit'), 'home page should mention Devtoolkit');
 });
 
-test('GET / links to the text editor and not to the legacy editor route', async () => {
+test('GET / links to the raw text editor and not to the legacy editor route', async () => {
     const res = await getPage('/');
     const body = await res.text();
-    assert.ok(body.includes('Text Editor'), 'home page should list the Text Editor');
-    assert.ok(body.includes('href="/text-editor"'), 'home page should link to /text-editor');
+    assert.ok(body.includes('Raw Text Editor'), 'home page should list the Raw Text Editor');
+    assert.ok(body.includes('href="/raw-text-editor"'), 'home page should link to /raw-text-editor');
     assert.ok(!body.includes('href="/editor"'), 'home page should not link to /editor');
 });
 
-test('GET /text-editor returns the text editor page', async () => {
-    const res = await getPage('/text-editor');
+test('GET /raw-text-editor returns the raw text editor page', async () => {
+    const res = await getPage('/raw-text-editor');
     assert.equal(res.status, 200);
     const body = await res.text();
-    assert.ok(body.includes('Text Editor'), 'text editor page should be named Text Editor');
-    assert.ok(body.includes('txtOutput'), 'text editor page should include its editing surface');
+    assert.ok(body.includes('Raw Text Editor'), 'raw text editor page should be named Raw Text Editor');
+    assert.ok(body.includes('txtOutput'), 'raw text editor page should include its editing surface');
 });
 
-test('GET /editor redirects permanently to /text-editor', async () => {
+test('the former /text-editor routes are gone', async () => {
+    for (const path of ['/text-editor', '/text-editor/3']) {
+        const res = await getPage(path);
+        assert.equal(res.status, 404, `${path} should no longer resolve`);
+    }
+});
+
+test('GET /editor redirects permanently to /raw-text-editor', async () => {
     const res = await getRedirect('/editor');
     assert.equal(res.status, 301);
-    assert.equal(res.headers.get('location'), '/text-editor');
+    assert.equal(res.headers.get('location'), '/raw-text-editor');
 
     const followed = await getPage('/editor');
     assert.equal(followed.status, 200);
-    assert.ok((await followed.text()).includes('Text Editor'));
+    assert.ok((await followed.text()).includes('Raw Text Editor'));
 });
 
 test('GET /code-editor returns the code editor page', async () => {
@@ -83,14 +90,14 @@ test('GET /template returns the template page', async () => {
 });
 
 test('numeric session routes serve their page kind', async () => {
-    for (const path of ['/text-editor/1', '/markdown-editor/2', '/code-editor/4', '/template/3']) {
+    for (const path of ['/raw-text-editor/1', '/markdown-editor/2', '/code-editor/4', '/template/3']) {
         const res = await getPage(path);
         assert.equal(res.status, 200, `${path} should resolve`);
     }
 });
 
 test('non-numeric session routes are rejected', async () => {
-    for (const path of ['/text-editor/abc', '/markdown-editor/abc', '/code-editor/abc', '/template/abc']) {
+    for (const path of ['/raw-text-editor/abc', '/markdown-editor/abc', '/code-editor/abc', '/template/abc']) {
         const res = await getPage(path);
         assert.equal(res.status, 404, `${path} should be rejected`);
     }
@@ -98,7 +105,7 @@ test('non-numeric session routes are rejected', async () => {
 
 test('nested session routes use absolute asset URLs', async () => {
     const pages = [
-        { path: '/text-editor/1', script: '/static/scripts/text-editor.js' },
+        { path: '/raw-text-editor/1', script: '/static/scripts/raw-text-editor.js' },
         { path: '/markdown-editor/1', script: '/static/scripts/markdown-editor.js' },
     ];
 
@@ -119,21 +126,21 @@ test('nested session routes use absolute asset URLs', async () => {
     }
 });
 
-test('legacy editor session routes redirect to the text editor route', async () => {
+test('legacy editor session routes redirect to the raw text editor route', async () => {
     const res = await getRedirect('/editor/3');
     assert.equal(res.status, 301);
-    assert.equal(res.headers.get('location'), '/text-editor/3');
+    assert.equal(res.headers.get('location'), '/raw-text-editor/3');
 
     const followed = await getPage('/editor/3');
     assert.equal(followed.status, 200);
-    assert.ok((await followed.text()).includes('Text Editor'));
+    assert.ok((await followed.text()).includes('Raw Text Editor'));
 
     const invalid = await getPage('/editor/abc');
     assert.equal(invalid.status, 404);
 });
 
 test('all served pages render the updated footer with GitHub fork link', async () => {
-    const pages = ['/', '/text-editor', '/markdown-editor', '/template'];
+    const pages = ['/', '/raw-text-editor', '/markdown-editor', '/template'];
     for (const path of pages) {
         const res = await getPage(path);
         assert.equal(res.status, 200, `${path} should return 200`);

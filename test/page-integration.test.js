@@ -5,7 +5,7 @@ const { app } = require('../server');
 const {
     openTemplatePage,
     openMarkdownPage,
-    openTextEditorPage,
+    openRawTextEditorPage,
     openCodeEditorPage,
     openGalleryPage,
     readPage,
@@ -16,7 +16,7 @@ const {
 
 const PAGES = [
     { script: 'template.js', file: 'template.html', options: ['Clear variables', 'Clear all'] },
-    { script: 'text-editor.js', file: 'text-editor.html', options: ['Toggle margins', 'Clear editor'] },
+    { script: 'raw-text-editor.js', file: 'raw-text-editor.html', options: ['Toggle margins', 'Clear editor'] },
     { script: 'markdown-editor.js', file: 'markdown-editor.html', options: ['Toggle margins', 'Clear editor'] },
     { script: 'code-editor.js', file: 'code-editor.html', options: ['Change language format', 'Toggle margins', 'Clear editor'] },
 ];
@@ -103,7 +103,7 @@ test('the shared header renders the same row on every page with its own content'
     const storage = sessionsModule.memoryStorage();
     const pages = [
         openTemplatePage(storage),
-        openTextEditorPage(storage),
+        openRawTextEditorPage(storage),
         openMarkdownPage(storage),
         openCodeEditorPage(storage),
     ];
@@ -159,7 +159,7 @@ test('conditional persistence is title-gated and the saved title is immutable', 
 test('each page starts fresh at its ID-less route and gains an ID after the first title save', () => {
     const cases = [
         { kind: 'template', open: openTemplatePage },
-        { kind: 'text-editor', open: openTextEditorPage },
+        { kind: 'raw-text-editor', open: openRawTextEditorPage },
         { kind: 'markdown-editor', open: openMarkdownPage },
         { kind: 'code-editor', open: openCodeEditorPage },
     ];
@@ -229,7 +229,7 @@ test('the home gallery shows, filters, and deletes sessions saved by the pages',
     template.typeTitle('Invoice');
     template.hide();
 
-    const textEditor = openTextEditorPage(storage);
+    const textEditor = openRawTextEditorPage(storage);
     textEditor.quill.root.innerHTML = '<p>Letter</p>';
     textEditor.quill.emit('text-change', [], [], 'user');
     textEditor.typeTitle('Letter');
@@ -250,7 +250,7 @@ test('the home gallery shows, filters, and deletes sessions saved by the pages',
 
     gallery.removeCard(0);
     assert.equal(
-        storage.getItem(sessionsModule.sessionKey('text-editor', textEditor.sessionId())),
+        storage.getItem(sessionsModule.sessionKey('raw-text-editor', textEditor.sessionId())),
         null,
         'the card deletes the selected session'
     );
@@ -266,9 +266,9 @@ test('the home gallery shows, filters, and deletes sessions saved by the pages',
 test('the kept and legacy URLs resolve and the server template API still works', async () => {
     const legacy = await fetch(`${baseUrl}/editor`, { redirect: 'manual' });
     assert.equal(legacy.status, 301);
-    assert.equal(legacy.headers.get('location'), '/text-editor');
+    assert.equal(legacy.headers.get('location'), '/raw-text-editor');
 
-    for (const path of ['/', '/editor', '/text-editor', '/template', '/markdown-editor']) {
+    for (const path of ['/', '/editor', '/raw-text-editor', '/template', '/markdown-editor']) {
         const response = await fetch(`${baseUrl}${path}`);
         assert.equal(response.status, 200, `${path} should resolve to a page`);
     }
