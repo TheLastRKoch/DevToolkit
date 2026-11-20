@@ -109,18 +109,28 @@ const stored = store.content();
 It keeps the Template and Variables tabs and the rendered output. Its options are
 **Clear variables** and **Clear all**.
 
+The three editor pages share a **Toggle margins** option. It insets the editor
+workspace by 200px on each side above 768px, and every page load starts with the
+margins off; the setting is not stored.
+
 ## Text editor page
 
 `/text-editor` presents a Quill rich-text editor and starts a new session;
 `/text-editor/<id>` reopens a saved one. It is reached from the home page and
-from the legacy `/editor` routes, which redirect permanently. Its only option is
-**Clear editor**; the stored content is imported through Quill's clipboard
-conversion, which normalizes it as untrusted markup.
+from the legacy `/editor` routes, which redirect permanently. Its options are
+**Toggle margins** and **Clear editor**; the stored content is imported through
+Quill's clipboard conversion, which normalizes it as untrusted markup.
+
 
 ## Markdown editor page
 
 `/markdown-editor` starts a new session; `/markdown-editor/<id>` reopens a saved
-one. It keeps the raw markdown pane and the rendered preview. Its only option is
+one. It keeps the raw markdown pane and renders the preview directly in the
+page: the rendered document flows with the page content, with no boxed panel or
+separate scrollbar, and the page itself scrolls long documents. The raw editor
+and the rendered preview sit side by side at 768 px and wider and stack with the
+raw editor first below that; either pane expands to the full page width and
+restores to the split view. Its options are **Toggle margins** and
 **Clear editor**.
 
 ## Code editor page
@@ -146,7 +156,8 @@ The status bar under the editor shows the active language as a text label on its
 left — `Auto: JSON` while detecting, or `JSON` after a manual choice — and the
 live character count on the right. The label is not a language control.
 
-Its options are **Change language format** and **Clear editor**. `Change language
+Its options are **Change language format**, **Toggle margins**, and
+**Clear editor**. `Change language
 format` opens a modal dialog whose dropdown offers `Auto`, `Plain Text`, and the
 20 supported languages, preselected to the current mode. Apply highlights the
 chosen language immediately, `Auto` resumes detection, and Cancel, `Escape`, or a

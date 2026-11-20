@@ -37,15 +37,16 @@ status `200`. A non-numeric session ID SHALL respond with status `404`.
 
 The code editor page SHALL mount the shared page header with the title textbox
 and Options dropdown, and SHALL NOT render its own page toolbar markup. The
-Options dropdown SHALL contain exactly two actions, `Change language format` and
-`Clear editor`. The page and its home page entry SHALL be named `Code Editor`.
+Options dropdown SHALL contain exactly three actions: `Change language format`,
+`Toggle margins`, and `Clear editor`. The page and its home page entry SHALL be
+named `Code Editor`.
 
 #### Scenario: Shared header is mounted
 
 - **WHEN** the user opens `/code-editor`
 - **THEN** the shared header renders the title textbox with placeholder
-  `DevToolKit` and an Options dropdown containing `Change language format` and
-  `Clear editor`
+  `DevToolKit` and an Options dropdown containing `Change language format`,
+  `Toggle margins`, and `Clear editor`
 
 #### Scenario: Default page title
 

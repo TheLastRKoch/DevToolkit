@@ -7,7 +7,6 @@
  *  - Live Markdown-to-HTML rendering via marked
  *  - Real-time character count status bar
  *  - Per-pane expand/restore toggles
- *  - Bidirectional proportional synchronized scrolling
  */
 
 'use strict';
@@ -23,7 +22,9 @@
     const previewPane   = document.getElementById('previewPane');
     const paneDivider   = document.getElementById('paneDivider');
     const paneDividerMobile = document.getElementById('paneDividerMobile');
+    const workspace     = document.getElementById('editorWorkspace');
     const currentYearEl = document.getElementById('currentYear');
+    const marginOption  = DevToolkitEditorMargins.createMarginToggle(workspace);
 
     // ── Year in footer ───────────────────────────────────────────────────────
     if (currentYearEl) {
@@ -52,29 +53,6 @@
         // Render preview
         mdPreview.innerHTML = renderMarkdown(text);
     }
-
-    // ── Scroll synchronization ───────────────────────────────────────────────
-    let isSyncing = false;
-
-    function syncScroll(source, target) {
-        if (isSyncing) return;
-        isSyncing = true;
-
-        const sourceScrollable = source.scrollHeight - source.clientHeight;
-        const targetScrollable = target.scrollHeight - target.clientHeight;
-
-        if (sourceScrollable > 0 && targetScrollable > 0) {
-            const ratio = source.scrollTop / sourceScrollable;
-            target.scrollTop = ratio * targetScrollable;
-        }
-
-        window.requestAnimationFrame(() => {
-            isSyncing = false;
-        });
-    }
-
-    mdInput.addEventListener('scroll', () => syncScroll(mdInput, mdPreview), { passive: true });
-    mdPreview.addEventListener('scroll', () => syncScroll(mdPreview, mdInput), { passive: true });
 
     // ── Pane expand/restore toggles ──────────────────────────────────────────
     // focusedPane: null | 'editor' | 'preview'
@@ -202,6 +180,7 @@
         persisted: store.isPersisted(),
         onTitleChange,
         options: [
+            ...(marginOption ? [{ id: 'toggle-margins', label: 'Toggle margins', run: marginOption.run }] : []),
             { id: 'clear-editor', label: 'Clear editor', run: clearEditor },
         ],
     });

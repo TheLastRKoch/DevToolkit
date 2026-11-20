@@ -25,10 +25,31 @@ test('the code editor mounts the shared header with its own options', () => {
 
     assert.deepEqual(
         page.optionItems().map((item) => item.textContent),
-        ['Change language format', 'Clear editor'],
+        ['Change language format', 'Toggle margins', 'Clear editor'],
     );
     assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
     assert.equal(page.document.title, 'Devtoolkit');
+});
+
+test('margins are off by default and toggle without touching the code', () => {
+    const page = openCodeEditorPage(sessionsModule.memoryStorage());
+    const workspace = page.element('codeEditorWorkspace');
+
+    assert.equal(workspace.classList.contains('editor-margins-enabled'), false, 'margins are disabled on load');
+
+    page.typeCode(INDENTED);
+    page.typeTitle('Notes');
+
+    page.openOptions();
+    page.selectOption(1);
+    assert.equal(workspace.classList.contains('editor-margins-enabled'), true, 'the first selection enables margins');
+
+    page.openOptions();
+    page.selectOption(1);
+    assert.equal(workspace.classList.contains('editor-margins-enabled'), false, 'the second selection disables margins');
+    assert.equal(page.surface.getValue(), INDENTED, 'the code is unchanged');
+    assert.equal(page.titleInput().value, 'Notes', 'the title is unchanged');
+    assert.equal(latestVersion(page).content, INDENTED, 'the stored content is unchanged');
 });
 
 test('the code editor creates the surface on its mount element', () => {
@@ -80,7 +101,7 @@ test('Clear editor empties the content and keeps the title', () => {
     page.typeTitle('Keep me');
 
     page.openOptions();
-    page.selectOption(1);
+    page.selectOption(2);
 
     assert.equal(page.surface.getValue(), '', 'the editor is emptied');
     assert.equal(page.surface.writes.at(-1).silent, true, 'clearing does not count as a user edit');
@@ -140,7 +161,7 @@ test('clearing cancels a pending detection so the language resets to plain text'
     const page = openCodeEditorPage(sessionsModule.memoryStorage());
     page.typeCode('{"pending":true}');
     page.openOptions();
-    page.selectOption(1);
+    page.selectOption(2);
     await page.waitForDetection();
 
     assert.equal(page.languageLabel(), 'Auto: Plain Text');
@@ -225,7 +246,7 @@ test('an untitled session cleared with Clear editor is not left dirty', () => {
     assert.equal(page.beforeUnloadProbe(), true, 'unsaved code is protected');
 
     page.openOptions();
-    page.selectOption(1);
+    page.selectOption(2);
     assert.equal(page.surface.getValue(), '');
     assert.equal(page.beforeUnloadProbe(), false, 'clearing is not an unsaved change');
 });
@@ -264,7 +285,7 @@ test('a missing editor module leaves the page usable with a warning', () => {
     assert.equal(page.charCount(), '0', 'the status bar still renders');
     assert.deepEqual(
         page.optionItems().map((item) => item.textContent),
-        ['Change language format', 'Clear editor'],
+        ['Change language format', 'Toggle margins', 'Clear editor'],
     );
 });
 
@@ -283,6 +304,9 @@ test('the status bar language label and modal are built without Bootstrap JS', (
 test('the page loads CodeMirror 6 as pinned ES modules', () => {
     assert.ok(codeEditorHtml.includes('id="pageHeader"'), 'the page mounts the shared header');
     assert.ok(codeEditorHtml.includes('browser-session.js'), 'the page loads the session store');
+    assert.ok(codeEditorHtml.includes('editor-margins.js'), 'the page loads the shared margin module');
+    assert.ok(codeEditorHtml.indexOf('editor-margins.js') < codeEditorHtml.indexOf('code-editor.js'), 'the margin module loads before the page script');
+    assert.match(codeEditorHtml, /@media\s*\(\s*min-width:\s*768px\s*\)\s*\{[\s\S]*?#codeEditorWorkspace\.editor-margins-enabled\s*\{[\s\S]*?margin-left:\s*200px[\s\S]*?margin-right:\s*200px/, 'enabled margins inset the workspace by 200px on wide viewports');
     assert.ok(codeEditorHtml.includes('page-header.js'), 'the page loads the shared header');
     assert.ok(codeEditorHtml.includes('code-language.js'), 'the page loads the detector');
     assert.ok(codeEditorHtml.includes('code-editor.js'), 'the page loads its wire-up script');

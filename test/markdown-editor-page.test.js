@@ -14,7 +14,7 @@ function latestVersion(page) {
 test('the markdown page declares the shared header with its own options', () => {
     const page = openMarkdownPage(sessionsModule.memoryStorage());
 
-    assert.deepEqual(page.optionItems().map((item) => item.textContent), ['Clear editor']);
+    assert.deepEqual(page.optionItems().map((item) => item.textContent), ['Toggle margins', 'Clear editor']);
     assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
     assert.equal(page.document.title, 'Devtoolkit');
 });
@@ -69,7 +69,7 @@ test('Clear editor empties the content and keeps the title', () => {
     page.typeTitle('Keep me');
 
     page.openOptions();
-    page.selectOption(0);
+    page.selectOption(1);
 
     assert.equal(page.element('mdInput').value, '');
     assert.equal(page.element('mdPreview').innerHTML, '<p></p>');
@@ -108,6 +108,20 @@ test('an untitled markdown session with changes is confirmed, a titled one is no
     page.typeTitle('Notes');
     page.type('mdInput', 'saved');
     assert.equal(page.beforeUnloadProbe(), false, 'a titled session is auto-versioned instead');
+});
+
+test('the rendered preview is not enclosed in a card panel', () => {
+    assert.ok(markdownHtml.includes('id="mdPreview"'), 'the page must keep the preview element');
+    assert.doesNotMatch(
+        markdownHtml,
+        /id="editorWorkspace"[^>]*class="[^"]*\b(?:border|rounded|shadow-sm|overflow-hidden|bg-white)\b/,
+        'the workspace must not render a bordered card'
+    );
+    assert.doesNotMatch(
+        markdownHtml,
+        /id="mdPreview"[^>]*class="[^"]*\b(?:overflow-auto|bg-white)\b/,
+        'the preview must not own a scroll region or card background'
+    );
 });
 
 test('the markdown page shares the header markup instead of duplicating it', () => {

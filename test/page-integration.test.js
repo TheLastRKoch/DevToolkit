@@ -16,9 +16,9 @@ const {
 
 const PAGES = [
     { script: 'template.js', file: 'template.html', options: ['Clear variables', 'Clear all'] },
-    { script: 'text-editor.js', file: 'text-editor.html', options: ['Clear editor'] },
-    { script: 'markdown-editor.js', file: 'markdown-editor.html', options: ['Clear editor'] },
-    { script: 'code-editor.js', file: 'code-editor.html', options: ['Change language format', 'Clear editor'] },
+    { script: 'text-editor.js', file: 'text-editor.html', options: ['Toggle margins', 'Clear editor'] },
+    { script: 'markdown-editor.js', file: 'markdown-editor.html', options: ['Toggle margins', 'Clear editor'] },
+    { script: 'code-editor.js', file: 'code-editor.html', options: ['Change language format', 'Toggle margins', 'Clear editor'] },
 ];
 
 let server;

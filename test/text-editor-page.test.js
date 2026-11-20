@@ -19,9 +19,29 @@ function typeInto(page, html, source = 'user') {
 test('the text editor mounts the shared header with its own options', () => {
     const page = openTextEditorPage(sessionsModule.memoryStorage());
 
-    assert.deepEqual(page.optionItems().map((item) => item.textContent), ['Clear editor']);
+    assert.deepEqual(page.optionItems().map((item) => item.textContent), ['Toggle margins', 'Clear editor']);
     assert.equal(page.titleInput().getAttribute('placeholder'), 'DevToolKit');
     assert.equal(page.document.title, 'Devtoolkit');
+});
+
+test('margins are off by default and toggle without touching the content', () => {
+    const page = openTextEditorPage(sessionsModule.memoryStorage());
+    const workspace = page.element('editorWorkspace');
+
+    assert.equal(workspace.classList.contains('editor-margins-enabled'), false, 'margins are disabled on load');
+
+    typeInto(page, '<p>Keep me</p>');
+    page.typeTitle('Notes');
+
+    page.openOptions();
+    page.selectOption(0);
+    assert.equal(workspace.classList.contains('editor-margins-enabled'), true, 'the first selection enables margins');
+
+    page.openOptions();
+    page.selectOption(0);
+    assert.equal(workspace.classList.contains('editor-margins-enabled'), false, 'the second selection disables margins');
+    assert.equal(page.titleInput().value, 'Notes', 'the title is unchanged');
+    assert.equal(latestVersion(page).content, '<p>Keep me</p>', 'the stored content is unchanged');
 });
 
 test('the text editor builds the Quill editing surface on its output element', () => {
@@ -77,7 +97,7 @@ test('Clear editor empties the content and keeps the title', () => {
     page.typeTitle('Keep me');
 
     page.openOptions();
-    page.selectOption(0);
+    page.selectOption(1);
 
     assert.deepEqual(page.quill.contents, { ops: [{ insert: '\n' }] }, 'the editor is emptied');
     page.hide();
@@ -119,6 +139,9 @@ test('the text editor page shares the header markup and calls no server API', ()
     assert.ok(textEditorHtml.includes('id="pageHeader"'), 'the page mounts the shared header');
     assert.ok(textEditorHtml.includes('browser-session.js'), 'the page loads the session store');
     assert.ok(textEditorHtml.includes('page-header.js'), 'the page loads the shared header');
+    assert.ok(textEditorHtml.includes('editor-margins.js'), 'the page loads the shared margin module');
+    assert.ok(textEditorHtml.indexOf('editor-margins.js') < textEditorHtml.indexOf('text-editor.js'), 'the margin module loads before the page script');
+    assert.match(textEditorHtml, /@media\s*\(\s*min-width:\s*768px\s*\)\s*\{[\s\S]*?#editorWorkspace\.editor-margins-enabled\s*\{[\s\S]*?margin-left:\s*200px[\s\S]*?margin-right:\s*200px/, 'enabled margins inset the workspace by 200px on wide viewports');
     assert.ok(textEditorHtml.includes('text-editor.js'), 'the page loads its own script');
     assert.ok(!textEditorHtml.includes('breadcrumb') && !textEditorScript.includes('breadcrumb'), 'the page must not include breadcrumb markup');
     assert.ok(!textEditorHtml.includes('template.js'), 'the page must not load the template script');
