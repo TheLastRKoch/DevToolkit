@@ -23,7 +23,9 @@
     const previewPane   = document.getElementById('previewPane');
     const paneDivider   = document.getElementById('paneDivider');
     const paneDividerMobile = document.getElementById('paneDividerMobile');
+    const workspace     = document.getElementById('editorWorkspace');
     const currentYearEl = document.getElementById('currentYear');
+    const marginOption  = DevToolkitEditorMargins.createMarginToggle(workspace);
 
     // ── Year in footer ───────────────────────────────────────────────────────
     if (currentYearEl) {
@@ -202,6 +204,7 @@
         persisted: store.isPersisted(),
         onTitleChange,
         options: [
+            ...(marginOption ? [{ id: 'toggle-margins', label: 'Toggle margins', run: marginOption.run }] : []),
             { id: 'clear-editor', label: 'Clear editor', run: clearEditor },
         ],
     });

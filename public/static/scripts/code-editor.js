@@ -15,6 +15,8 @@
     const DETECTION_DELAY = 150;
 
     const mount = document.getElementById('codeEditorMount');
+    const workspace = document.getElementById('codeEditorWorkspace');
+    const marginOption = DevToolkitEditorMargins.createMarginToggle(workspace);
     const languageLabelEl = document.getElementById('languageLabel');
     const charCountEl = document.getElementById('charCount');
     const languageDialog = document.getElementById('languageDialog');
@@ -255,6 +257,7 @@
             onTitleChange,
             options: [
                 { id: 'change-language', label: 'Change language format', run: openLanguageDialog },
+                ...(marginOption ? [{ id: 'toggle-margins', label: 'Toggle margins', run: marginOption.run }] : []),
                 { id: 'clear-editor', label: 'Clear editor', run: clearEditor },
             ],
         });

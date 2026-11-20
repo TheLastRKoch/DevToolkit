@@ -11,6 +11,8 @@
 
 (function () {
     const currentYearEl = document.getElementById('currentYear');
+    const workspace = document.getElementById('editorWorkspace');
+    const marginOption = DevToolkitEditorMargins.createMarginToggle(workspace);
     const KIND = 'text-editor';
 
     let header = null;
@@ -120,6 +122,7 @@
         persisted: store.isPersisted(),
         onTitleChange,
         options: [
+            ...(marginOption ? [{ id: 'toggle-margins', label: 'Toggle margins', run: marginOption.run }] : []),
             { id: 'clear-editor', label: 'Clear editor', run: clearEditor },
         ],
     });
