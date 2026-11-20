@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Lets users control whether the text, markdown, and code editor workspaces are
+Lets users control whether the raw text, markdown, and code editor workspaces are
 inset by a wide side margin, so the full viewport width is available by default
 and the margined reading layout is one click away.
 

@@ -164,17 +164,26 @@ function createQuillStub() {
     const conversions = [];
     const instances = [];
     function Quill(selector, options) {
+        const matchers = [];
+        const root = {
+            innerHTML: '',
+            contains: (node) => node === root,
+        };
         const instance = {
             selector,
             options,
             contents: null,
             appliedSource: null,
             handlers: {},
-            root: { innerHTML: '' },
+            root,
+            matchers,
             clipboard: {
                 convert: ({ html }) => {
                     conversions.push(html);
                     return { ops: [{ insert: html === '' ? '\n' : html }] };
+                },
+                addMatcher: (matcherSelector, matcher) => {
+                    matchers.push({ selector: matcherSelector, matcher });
                 },
             },
             setContents: (delta, source) => {
@@ -194,25 +203,59 @@ function createQuillStub() {
     return { Quill, instances, conversions };
 }
 
-function openTextEditorPage(storage, { clock, initialHtml, title, sessionId } = {}) {
+/** Renders a pasted delta the way Quill would insert it, for stored-HTML assertions. */
+function renderDeltaHtml(delta) {
+    return (delta.ops || []).map((op) => {
+        if (typeof op.insert !== 'string') {
+            return '';
+        }
+        const styles = [];
+        if (op.attributes && op.attributes.color) {
+            styles.push(`color: ${op.attributes.color}`);
+        }
+        if (op.attributes && op.attributes.background) {
+            styles.push(`background-color: ${op.attributes.background}`);
+        }
+        return styles.length > 0 ? `<span style="${styles.join('; ')}">${op.insert}</span>` : op.insert;
+    }).join('');
+}
+
+
+function openRawTextEditorPage(storage, { clock, initialHtml, title, sessionId } = {}) {
     const seeded = title || initialHtml !== undefined ? { title: title || 'Restored session', content: initialHtml || '' } : null;
     let targetId = sessionId;
     if (seeded) {
-        const store = seedSession(storage, 'text-editor', seeded, clock, targetId);
+        const store = seedSession(storage, 'raw-text-editor', seeded, clock, targetId);
         targetId = store.getId();
     }
     const quillStub = createQuillStub();
     const page = buildHarness({
         ids: ['txtOutput', 'editorWorkspace', 'currentYear'],
-        script: readScript('text-editor.js'),
+        script: readScript('raw-text-editor.js'),
         storage,
         clock,
         sessionId: targetId,
-        kind: 'text-editor',
+        kind: 'raw-text-editor',
         globals: { Quill: quillStub.Quill },
     });
     page.quill = quillStub.instances[0];
     page.conversions = quillStub.conversions;
+    /**
+     * Simulates a Quill paste: dispatches the page's paste event, then runs the
+     * registered element matchers over the pasted delta and appends the result
+     * like Quill would, emitting the user text-change.
+     */
+    page.paste = (delta, { target } = {}) => {
+        page.document.dispatch('paste', {
+            target: target === undefined ? page.quill.root : target,
+        });
+        const pasted = page.quill.matchers
+            .filter((entry) => entry.selector === 1)
+            .reduce((current, entry) => entry.matcher(page.quill.root, current), delta);
+        page.quill.root.innerHTML += renderDeltaHtml(pasted);
+        page.quill.emit('text-change', [], [], 'user');
+        return pasted;
+    };
     return page;
 }
 
@@ -389,7 +432,7 @@ function findRemoveButton(node) {
 module.exports = {
     openTemplatePage,
     openMarkdownPage,
-    openTextEditorPage,
+    openRawTextEditorPage,
     openListComparePage,
     openCodeEditorPage,
     openGalleryPage,

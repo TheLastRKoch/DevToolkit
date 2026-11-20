@@ -2,9 +2,10 @@
 
 ## Purpose
 
-Defines the text editor endpoint and page introduced by renaming the editor
-route, so the page and its navigation entry consistently use the Text Editor
-name while old links keep working.
+Defines the raw text editor endpoint and page, so the page, its browser
+sessions, and its navigation entry consistently use the Raw Text Editor name,
+legacy editor links keep reaching it, and pasted content keeps the editor's
+plain appearance.
 
 ## Requirements
 

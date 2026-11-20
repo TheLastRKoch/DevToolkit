@@ -104,18 +104,18 @@ app.get('/template', servePage('template.html'));
 app.get('/template/:id', serveSessionPage('template.html'));
 
 app.get('/editor', (req, res) => {
-    res.redirect(301, '/text-editor');
+    res.redirect(301, '/raw-text-editor');
 });
 
 app.get('/editor/:id', (req, res) => {
     if (!/^[1-9][0-9]*$/.test(req.params.id)) {
         return res.sendStatus(404);
     }
-    return res.redirect(301, `/text-editor/${req.params.id}`);
+    return res.redirect(301, `/raw-text-editor/${req.params.id}`);
 });
 
-app.get('/text-editor', servePage('text-editor.html'));
-app.get('/text-editor/:id', serveSessionPage('text-editor.html'));
+app.get('/raw-text-editor', servePage('raw-text-editor.html'));
+app.get('/raw-text-editor/:id', serveSessionPage('raw-text-editor.html'));
 
 app.get('/markdown-editor', servePage('markdown-editor.html'));
 app.get('/markdown-editor/:id', serveSessionPage('markdown-editor.html'));

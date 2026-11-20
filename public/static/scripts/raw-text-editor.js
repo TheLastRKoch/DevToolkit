@@ -1,5 +1,5 @@
 /**
- * Text Editor – DevToolkit
+ * Raw Text Editor – DevToolkit
  *
  * Handles:
  *  - Quill rich-text editing surface
@@ -13,10 +13,11 @@
     const currentYearEl = document.getElementById('currentYear');
     const workspace = document.getElementById('editorWorkspace');
     const marginOption = DevToolkitEditorMargins.createMarginToggle(workspace);
-    const KIND = 'text-editor';
+    const KIND = 'raw-text-editor';
 
     let header = null;
     let dirty = false;
+    let pasting = false;
 
     const routeSessionId = DevToolkitSessions.sessionIdFromPath(window.location.pathname, KIND);
     const store = DevToolkitSessions.openStore(KIND, DevToolkitSessions.browserStorage(), {
@@ -40,6 +41,41 @@
         placeholder: '',
         theme: 'snow',
     });
+
+    /**
+     * Pasted content is normalized to the editor's plain appearance: backgrounds
+     * are dropped and the text is explicitly black. Quill converts the pasted
+     * clipboard synchronously, so the capture-phase paste listener marks the
+     * conversion before Quill's own paste handler runs.
+     */
+    function normalizePastedDelta(delta) {
+        delta.ops.forEach((op) => {
+            if (!op.attributes) {
+                return;
+            }
+            delete op.attributes.background;
+            if (typeof op.insert === 'string') {
+                op.attributes.color = '#000000';
+            }
+        });
+        return delta;
+    }
+
+    document.addEventListener('paste', (event) => {
+        if (event.target !== quill.root && !quill.root.contains(event.target)) {
+            return;
+        }
+        pasting = true;
+        setTimeout(() => {
+            pasting = false;
+        }, 0);
+    }, true);
+
+    // Matchers registered here run after Quill's own style matchers, so the
+    // background and color carried by the pasted markup are already on the delta.
+    quill.clipboard.addMatcher(1 /* Node.ELEMENT_NODE */, (node, delta) => (
+        pasting ? normalizePastedDelta(delta) : delta
+    ));
 
     function currentHtml() {
         return quill.root.innerHTML;

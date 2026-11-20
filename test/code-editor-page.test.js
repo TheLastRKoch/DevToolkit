@@ -261,18 +261,18 @@ test('unrecognized code reports plain text', async () => {
 
 test('the code editor keeps its session isolated from other page kinds', () => {
     const storage = sessionsModule.memoryStorage();
-    seedSession(storage, 'text-editor', { title: 'Prose', content: '<p>Hello</p>' });
-    const prose = storage.getItem(sessionsModule.sessionKey('text-editor', 1));
+    seedSession(storage, 'raw-text-editor', { title: 'Prose', content: '<p>Hello</p>' });
+    const prose = storage.getItem(sessionsModule.sessionKey('raw-text-editor', 1));
 
     const page = openCodeEditorPage(storage);
     page.typeCode(INDENTED);
     page.typeTitle('Code');
     page.blurTitle();
 
-    assert.equal(storage.getItem(sessionsModule.sessionKey('text-editor', 1)), prose);
+    assert.equal(storage.getItem(sessionsModule.sessionKey('raw-text-editor', 1)), prose);
     assert.deepEqual(
         sessionsModule.listAll(storage).map((session) => session.kind).sort(),
-        ['code-editor', 'text-editor'],
+        ['code-editor', 'raw-text-editor'],
     );
 });
 
