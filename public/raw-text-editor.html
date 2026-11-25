@@ -15,6 +15,12 @@
                 margin-right: 200px;
             }
         }
+
+        /* Text wrap is off on load: long lines extend and scroll instead. */
+        #editorWorkspace.editor-text-wrap-disabled .ql-editor {
+            white-space: pre;
+            overflow-x: auto;
+        }
     </style>
 </head>
 
@@ -57,6 +63,7 @@
     <script src="/static/scripts/browser-session.js"></script>
     <script src="/static/scripts/page-header.js"></script>
     <script src="/static/scripts/editor-margins.js"></script>
+    <script src="/static/scripts/editor-text-wrap.js"></script>
     <script src="/static/scripts/raw-text-editor.js"></script>
 </body>
 

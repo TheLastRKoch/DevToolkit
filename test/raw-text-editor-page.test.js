@@ -44,6 +44,57 @@ test('margins are off by default and toggle without touching the content', () =>
     assert.equal(latestVersion(page).content, '<p>Keep me</p>', 'the stored content is unchanged');
 });
 
+test('text wrap starts off and Alt+Z toggles it without touching the session', () => {
+    const page = openRawTextEditorPage(sessionsModule.memoryStorage());
+    const workspace = page.element('editorWorkspace');
+
+    typeInto(page, '<p>a long line that should not wrap</p>');
+    page.typeTitle('Notes');
+
+    assert.equal(workspace.classList.contains('editor-text-wrap-disabled'), true, 'wrapping is disabled on load');
+
+    let prevented = false;
+    page.document.dispatch('keydown', {
+        code: 'KeyZ',
+        altKey: true,
+        preventDefault() {
+            prevented = true;
+        },
+    });
+
+    assert.equal(prevented, true, 'the page consumes the shortcut');
+    assert.equal(workspace.classList.contains('editor-text-wrap-disabled'), false, 'the shortcut enables wrapping');
+
+    page.document.dispatch('keydown', { code: 'KeyZ', altKey: true, preventDefault() {} });
+
+    assert.equal(workspace.classList.contains('editor-text-wrap-disabled'), true, 'the shortcut disables wrapping again');
+    assert.deepEqual(
+        page.optionItems().map((item) => item.textContent),
+        ['Toggle margins', 'Clear editor'],
+        'the Options list is unchanged',
+    );
+    assert.equal(page.titleInput().value, 'Notes', 'the title is unchanged');
+    assert.equal(latestVersion(page).content, '<p>a long line that should not wrap</p>', 'the stored content is unchanged');
+});
+
+test('the page styles unwrapped lines and loads the shared shortcut module', () => {
+    assert.ok(rawTextEditorHtml.includes('editor-text-wrap.js'), 'the page loads the shared text wrap module');
+    assert.ok(
+        rawTextEditorHtml.indexOf('editor-text-wrap.js') < rawTextEditorHtml.indexOf('raw-text-editor.js'),
+        'the text wrap module loads before the page script',
+    );
+    assert.match(
+        rawTextEditorHtml,
+        /#editorWorkspace\.editor-text-wrap-disabled\s+\.ql-editor\s*\{[^}]*white-space:\s*pre[^}]*\}/,
+        'disabled wrapping keeps Quill lines unwrapped',
+    );
+    assert.match(
+        rawTextEditorHtml,
+        /#editorWorkspace\.editor-text-wrap-disabled\s+\.ql-editor\s*\{[^}]*overflow-x:\s*auto[^}]*\}/,
+        'unwrapped lines can be scrolled horizontally',
+    );
+});
+
 test('the raw text editor builds the Quill editing surface on its output element', () => {
     const page = openRawTextEditorPage(sessionsModule.memoryStorage());
     assert.equal(page.quill.selector, '#txtOutput');

@@ -72,6 +72,7 @@ function create(config) {
     const onError = typeof settings.onError === 'function' ? settings.onError : null;
 
     const languageCompartment = new Compartment();
+    const wrappingCompartment = new Compartment();
     let suppressChanges = 0;
     let destroyed = false;
     let languageRequest = 0;
@@ -91,6 +92,7 @@ function create(config) {
             basicSetup,
             editorTheme,
             languageCompartment.of([]),
+            wrappingCompartment.of([]),
             updateListener,
         ],
         parent,
@@ -156,6 +158,16 @@ function create(config) {
         });
     }
 
+    /** Switches line wrapping without touching the document or its history. */
+    function setLineWrapping(enabled) {
+        if (destroyed) {
+            return;
+        }
+        view.dispatch({
+            effects: wrappingCompartment.reconfigure(enabled ? EditorView.lineWrapping : []),
+        });
+    }
+
     function focus() {
         view.focus();
     }
@@ -170,6 +182,7 @@ function create(config) {
         getLength,
         setValue,
         setLanguage,
+        setLineWrapping,
         focus,
         destroy,
         view,

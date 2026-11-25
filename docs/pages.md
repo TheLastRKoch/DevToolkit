@@ -113,6 +113,15 @@ The three editor pages share a **Toggle margins** option. It insets the editor
 workspace by 200px on each side above 768px, and every page load starts with the
 margins off; the setting is not stored.
 
+The raw text and code editor pages also share a **text wrap** shortcut:
+`Alt+Z` on Windows and Linux, or `Option+Z` on macOS, toggles whether long lines
+wrap at the editing surface width. Every page load starts with text wrap
+disabled, so long lines extend horizontally and the editing surface scrolls
+instead of wrapping. The state is presentational only: it is not stored and is
+not restored with a saved session, and toggling it leaves the content, title,
+character count, line numbers, syntax highlighting, and Options dropdown
+unchanged.
+
 ## Raw text editor page
 
 `/raw-text-editor` presents a Quill rich-text editor and starts a new session;
@@ -122,7 +131,8 @@ from the legacy `/editor` routes, which redirect permanently. Its options are
 Quill's clipboard conversion, which normalizes it as untrusted markup. Pasting
 removes any background color, discards the pasted font family and font size,
 flattens headings to plain paragraphs, and sets the text color to black, so
-pasted text renders in the editor's default font.
+pasted text renders in the editor's default font. Text wrap starts disabled and
+the `Alt+Z`/`Option+Z` shortcut toggles it without touching the session.
 
 
 ## Markdown editor page
@@ -167,7 +177,9 @@ chosen language immediately, `Auto` resumes detection, and Cancel, `Escape`, or 
 backdrop click leave the language unchanged; editing the content keeps a manual
 selection. **Clear editor** empties the content and keeps the title. If
 CodeMirror or a language chunk cannot be loaded, the header shows a warning and
-the rest of the page stays usable.
+the rest of the page stays usable. Text wrap starts disabled, so long lines
+scroll horizontally, and the `Alt+Z`/`Option+Z` shortcut toggles wrapping
+without changing the code or its character count.
 
 ## Home page gallery
 

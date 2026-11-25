@@ -250,6 +250,17 @@
             }
         }
 
+        if (typeof DevToolkitEditorTextWrap !== 'undefined' && DevToolkitEditorTextWrap) {
+            DevToolkitEditorTextWrap.createTextWrapToggle({
+                workspace,
+                apply: (enabled) => {
+                    if (surface && typeof surface.setLineWrapping === 'function') {
+                        surface.setLineWrapping(enabled);
+                    }
+                },
+            });
+        }
+
         header = DevToolkitPageHeader.initPageHeader({
             mount: document.getElementById('pageHeader'),
             title: session.title,

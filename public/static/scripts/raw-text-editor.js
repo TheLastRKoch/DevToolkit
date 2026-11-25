@@ -13,6 +13,9 @@
     const currentYearEl = document.getElementById('currentYear');
     const workspace = document.getElementById('editorWorkspace');
     const marginOption = DevToolkitEditorMargins.createMarginToggle(workspace);
+    if (typeof DevToolkitEditorTextWrap !== 'undefined' && DevToolkitEditorTextWrap) {
+        DevToolkitEditorTextWrap.createTextWrapToggle({ workspace });
+    }
     const KIND = 'raw-text-editor';
 
     let header = null;
