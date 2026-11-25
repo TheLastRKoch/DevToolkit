@@ -172,17 +172,21 @@ function runScript(source, { document, window, globals, sandbox }) {
 }
 
 /**
- * Binds the page header's browser global to the sandbox document, because a
+ * Binds a module's document-aware factories to the sandbox document, because a
  * module required by Node resolves `document` from its own scope, not the
  * sandbox's.
  */
 function withDocument(api, document) {
+    const bound = Object.assign({}, api);
     if (typeof api.initPageHeader === 'function') {
-        return Object.assign({}, api, {
-            initPageHeader: (config) => api.initPageHeader(Object.assign({ document }, config)),
-        });
+        bound.initPageHeader = (config) => api.initPageHeader(Object.assign({ document }, config));
     }
-    return api;
+    if (typeof api.createTextWrapToggle === 'function') {
+        bound.createTextWrapToggle = (config) => api.createTextWrapToggle(
+            Object.assign({ document }, config || {}),
+        );
+    }
+    return bound;
 }
 
 module.exports = { createDom, createElement, createWindow, runScript, withDocument };

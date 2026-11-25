@@ -52,6 +52,39 @@ test('margins are off by default and toggle without touching the code', () => {
     assert.equal(latestVersion(page).content, INDENTED, 'the stored content is unchanged');
 });
 
+test('text wrap starts off and Alt+Z toggles it without touching the code', () => {
+    const page = openCodeEditorPage(sessionsModule.memoryStorage());
+    const workspace = page.element('codeEditorWorkspace');
+
+    page.typeCode(INDENTED);
+    page.typeTitle('Notes');
+    const before = page.charCount();
+
+    assert.equal(workspace.classList.contains('editor-text-wrap-disabled'), true, 'wrapping is disabled on load');
+    assert.deepEqual(page.surface.lineWrapping, [false], 'the surface starts unwrapped');
+
+    let prevented = false;
+    page.document.dispatch('keydown', {
+        code: 'KeyZ',
+        altKey: true,
+        preventDefault() {
+            prevented = true;
+        },
+    });
+
+    assert.equal(prevented, true, 'the page consumes the shortcut');
+    assert.equal(workspace.classList.contains('editor-text-wrap-disabled'), false, 'the shortcut enables wrapping');
+    assert.deepEqual(page.surface.lineWrapping, [false, true], 'the surface is asked to wrap');
+
+    page.document.dispatch('keydown', { code: 'KeyZ', altKey: true, preventDefault() {} });
+
+    assert.equal(workspace.classList.contains('editor-text-wrap-disabled'), true, 'the shortcut disables wrapping again');
+    assert.deepEqual(page.surface.lineWrapping, [false, true, false]);
+    assert.equal(page.surface.getValue(), INDENTED, 'the code is unchanged');
+    assert.equal(page.charCount(), before, 'the character count is unchanged');
+    assert.equal(latestVersion(page).content, INDENTED, 'the stored content is unchanged');
+});
+
 test('the code editor creates the surface on its mount element', () => {
     const page = openCodeEditorPage(sessionsModule.memoryStorage());
     assert.equal(page.surface.config.parent, page.element('codeEditorMount'));

@@ -15,6 +15,7 @@ const sessionsModule = require('../../public/static/scripts/browser-session.js')
 const pageHeaderModule = require('../../public/static/scripts/page-header.js');
 const codeLanguageModule = require('../../public/static/scripts/code-language.js');
 const editorMarginsModule = require('../../public/static/scripts/editor-margins.js');
+const editorTextWrapModule = require('../../public/static/scripts/editor-text-wrap.js');
 const { createDom, createWindow, runScript, withDocument } = require('./mock-dom.js');
 
 const root = path.join(__dirname, '../..');
@@ -131,6 +132,7 @@ function buildHarness({ ids, script, globals, storage, kind, clock, sessionId })
             DevToolkitSessions: sessionGlobals({ storage, clock }),
             DevToolkitPageHeader: withDocument(pageHeaderModule, dom.document),
             DevToolkitEditorMargins: editorMarginsModule,
+            DevToolkitEditorTextWrap: withDocument(editorTextWrapModule, dom.document),
         }),
     });
     return pageHarness({ dom, window, kind, storage });
@@ -293,6 +295,10 @@ function createCodeSurfaceStub() {
             },
             setLanguage: (id) => {
                 instance.languages.push(id);
+            },
+            lineWrapping: [],
+            setLineWrapping: (enabled) => {
+                instance.lineWrapping.push(enabled);
             },
             focus: () => {},
             destroy: () => {},
