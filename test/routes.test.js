@@ -87,6 +87,8 @@ test('GET /template returns the template page', async () => {
     const body = await res.text();
     assert.ok(body.includes('id="pageHeader"'), 'template page should mount the shared header');
     assert.ok(body.includes('txtInput'), 'template page should include its editing surface');
+    assert.ok(body.includes('href="/static/img/favicon.ico"'), 'template page should use an absolute favicon URL');
+    assert.ok(!body.includes('href="static/img/favicon.ico"'), 'template page should not use a relative favicon URL');
 });
 
 test('numeric session routes serve their page kind', async () => {
@@ -107,6 +109,7 @@ test('nested session routes use absolute asset URLs', async () => {
     const pages = [
         { path: '/raw-text-editor/1', script: '/static/scripts/raw-text-editor.js' },
         { path: '/markdown-editor/1', script: '/static/scripts/markdown-editor.js' },
+        { path: '/template/3', script: '/static/scripts/template.js' },
     ];
 
     for (const { path, script } of pages) {
